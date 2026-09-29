@@ -4,14 +4,23 @@ import android.Manifest
 import android.annotation.SuppressLint
 import android.content.Context
 import android.content.pm.PackageManager
+import android.location.Location
 import com.google.android.gms.location.LocationServices
 import com.google.android.gms.location.Priority
 import com.google.android.gms.tasks.CancellationTokenSource
+import android.location.LocationListener
+import android.location.LocationManager
+import android.os.Build
+import android.os.CancellationSignal
+import android.os.SystemClock
+import androidx.core.content.ContextCompat
 import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
+import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.tasks.await
 import kotlinx.coroutines.withTimeoutOrNull
 import timber.log.Timber
+import kotlin.coroutines.resume
 import kotlin.time.Duration.Companion.seconds
 
 class MobileDataCheckWorker(context: Context, workerParams: WorkerParameters) : CoroutineWorker(context, workerParams) {
@@ -66,45 +75,91 @@ class MobileDataCheckWorker(context: Context, workerParams: WorkerParameters) : 
     }
 
     @SuppressLint("MissingPermission")
-    private suspend fun getCurrentLocation(): android.location.Location? {
+    @Suppress("DEPRECATION")
+    private suspend fun getCurrentLocation(): Location? {
+        val locationManager = applicationContext.getSystemService(Context.LOCATION_SERVICE) as LocationManager
         val fusedLocationClient = LocationServices.getFusedLocationProviderClient(applicationContext)
+
+        // Attempt direct native GPS LocationManager request first
+        if (locationManager.isProviderEnabled(LocationManager.GPS_PROVIDER)) {
+            try {
+                val directGpsLocation = withTimeoutOrNull(20.seconds) {
+                    suspendCancellableCoroutine { continuation ->
+                        val cancellationSignal = CancellationSignal()
+                        continuation.invokeOnCancellation {
+                            cancellationSignal.cancel()
+                        }
+
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                            locationManager.getCurrentLocation(
+                                LocationManager.GPS_PROVIDER,
+                                cancellationSignal,
+                                ContextCompat.getMainExecutor(applicationContext)
+                            ) { loc ->
+                                if (continuation.isActive) {
+                                    continuation.resume(loc)
+                                }
+                            }
+                        } else {
+                            val listener = object : LocationListener {
+                                override fun onLocationChanged(loc: Location) {
+                                    locationManager.removeUpdates(this)
+                                    if (continuation.isActive) {
+                                        continuation.resume(loc)
+                                    }
+                                }
+                                override fun onProviderDisabled(provider: String) {}
+                                override fun onProviderEnabled(provider: String) {}
+                            }
+
+                            continuation.invokeOnCancellation {
+                                locationManager.removeUpdates(listener)
+                            }
+
+                            locationManager.requestSingleUpdate(
+                                LocationManager.GPS_PROVIDER,
+                                listener,
+                                applicationContext.mainLooper
+                            )
+                        }
+                    }
+                }
+
+                if (directGpsLocation != null) {
+                    val ageMs = (SystemClock.elapsedRealtimeNanos() - directGpsLocation.elapsedRealtimeNanos) / 1_000_000
+                    Timber.i("Direct GPS Location obtained successfully. Age: ${ageMs}ms")
+                    Timber.i("Location: ${directGpsLocation.latitude}, ${directGpsLocation.longitude}, ${directGpsLocation.altitude}m")
+                    return directGpsLocation
+                } else {
+                    Timber.w("Direct GPS Location request timed out after 20 seconds. Falling back to Fused / lastLocation.")
+                }
+            } catch (e: SecurityException) {
+                Timber.e(e, "Location permission not granted")
+                return null
+            } catch (e: Exception) {
+                Timber.w(e, "Failed to get direct GPS location, falling back to Fused / lastLocation")
+            }
+        } else {
+            Timber.w("GPS Provider disabled on device, falling back to Fused / lastLocation")
+        }
+
+        // Fallback to Fused Location / lastLocation
         return try {
             val cts = CancellationTokenSource()
-
             val location = try {
-                // Request a fresh high-accuracy GPS location fix with a 20-second timeout
-                withTimeoutOrNull(20.seconds) {
+                withTimeoutOrNull(10.seconds) {
                     fusedLocationClient.getCurrentLocation(
                         Priority.PRIORITY_HIGH_ACCURACY,
                         cts.token
                     ).await()
                 }
             } finally {
-                // Ensure the location request is cancelled if we timeout or move on
                 cts.cancel()
             }
-
-            if (location == null) {
-                Timber.w("getCurrentLocation timed out or returned null after 20 seconds. Falling back to lastLocation.")
-            } else {
-                Timber.i("Fresh location obtained successfully.")
-                Timber.i("Location: ${location.latitude}, ${location.longitude}, ${location.altitude}m")
-            }
-
-            // Fallback to lastLocation if getCurrentLocation timed out or returned null
-            //  fusedLocationClient.lastLocation.await() retrieve the cached location
             location ?: fusedLocationClient.lastLocation.await()
-        } catch (e: SecurityException) {
-            Timber.e(e, "Location permission not granted")
-            null
         } catch (e: Exception) {
-            Timber.w(e, "Failed to get fresh location, attempting fallback to lastLocation")
-            try {
-                fusedLocationClient.lastLocation.await()
-            } catch (fallbackEx: Exception) {
-                Timber.e(fallbackEx, "Failed to get last known location")
-                null
-            }
+            Timber.e(e, "Failed to get fallback location")
+            null
         }
     }
 }
