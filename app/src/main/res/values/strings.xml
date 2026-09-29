@@ -1,0 +1,10 @@
+<resources>
+    <string name="app_name">MobileDataChecker</string>
+    <string name="sms_phone_number">+4915776049418</string>
+    <string name="actions">Steuerung</string>
+    <string name="status">Status</string>
+    <string name="worker_running">Hintergrund-Job läuft… (%1$d Min)</string>
+    <string name="worker_start">Hintergrund-Job starten (%1$d Min)</string>
+    <string name="worker_stop">Hintergrund-Job stoppen</string>
+    <string name="get_locations">Standorte abrufen</string>
+</resources>
