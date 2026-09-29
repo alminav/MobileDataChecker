@@ -21,6 +21,7 @@ import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.material.icons.filled.TabletAndroid
@@ -77,25 +78,52 @@ fun MainScreen(viewModel: MainViewModel) {
     var showLocationDialog by remember { mutableStateOf(false) }
 
     var hasRequiredPermissions by remember { mutableStateOf(false) }
+    var showBackgroundRationale by remember { mutableStateOf(false) }
+
+    val backgroundPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { isGranted ->
+        Timber.i("Background location permission granted: $isGranted")
+    }
+
     val permissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestMultiplePermissions()
     ) { results ->
         hasRequiredPermissions = results.values.all { it }
+
+        val foregroundLocationGranted = results[Manifest.permission.ACCESS_FINE_LOCATION] == true ||
+                results[Manifest.permission.ACCESS_COARSE_LOCATION] == true
+
+        if (foregroundLocationGranted) {
+            val hasBackground = androidx.core.content.ContextCompat.checkSelfPermission(
+                context, Manifest.permission.ACCESS_BACKGROUND_LOCATION
+            ) == android.content.pm.PackageManager.PERMISSION_GRANTED
+            if (!hasBackground) {
+                showBackgroundRationale = true
+            }
+        }
     }
 
     LaunchedEffect(Unit) {
         val permissions = mutableListOf<String>()
+        // Standard permissions
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             permissions.add(Manifest.permission.POST_NOTIFICATIONS)
         }
         permissions.add(Manifest.permission.READ_PHONE_STATE)
         permissions.add(Manifest.permission.SEND_SMS)
+
+        // Foreground location permissions
         permissions.add(Manifest.permission.ACCESS_FINE_LOCATION)
         permissions.add(Manifest.permission.ACCESS_COARSE_LOCATION)
-        permissions.add(Manifest.permission.ACCESS_BACKGROUND_LOCATION)
         permissions.add(Manifest.permission.INTERNET)
         permissions.add(Manifest.permission.ACCESS_NETWORK_STATE)
+
         permissionLauncher.launch(permissions.toTypedArray())
+
+        // Note: ACCESS_BACKGROUND_LOCATION should ideally be requested
+        // only after foreground permissions are granted, and often requires
+        // a separate UI explanation to the user as per Google Play policies.
     }
 
     // Update timestamp when status changes or worker runs
@@ -183,6 +211,31 @@ fun MainScreen(viewModel: MainViewModel) {
                     viewModel.executeLocationDeleteByFilter(filter)
                 showLocationDialog = false
 
+            }
+        )
+    }
+
+    if (showBackgroundRationale) {
+        AlertDialog(
+            onDismissRequest = { showBackgroundRationale = false },
+            title = { Text("Hintergrund-Standortzugriff") },
+            text = {
+                Text("Diese App benötigt Zugriff auf Ihren Standort im Hintergrund.\n\nBitte wähle in den folgenden Einstellungen 'Immer zulassen'.")
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        showBackgroundRationale = false
+                        backgroundPermissionLauncher.launch(Manifest.permission.ACCESS_BACKGROUND_LOCATION)
+                    }
+                ) {
+                    Text("Zulassen")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showBackgroundRationale = false }) {
+                    Text("Abbrechen")
+                }
             }
         )
     }
@@ -360,7 +413,7 @@ fun WorkerControlCard(
     onSendLocationNow: () -> Unit
 ) {
     Card(
-        modifier = modifier.fillMaxWidth().fillMaxHeight(),
+        modifier = modifier.fillMaxWidth(),
         shape = MaterialTheme.shapes.medium,
         colors = CardDefaults.cardColors(
             containerColor = containerColor,
@@ -368,9 +421,7 @@ fun WorkerControlCard(
         )
     ) {
         Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(24.dp),
+            modifier = Modifier.fillMaxWidth(),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
@@ -505,7 +556,7 @@ fun MainScreenContent(
             .verticalScroll(rememberScrollState())
             .statusBarsPadding()
             .navigationBarsPadding(),
-        verticalArrangement = Arrangement.Center,
+        verticalArrangement = Arrangement.Top,
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
 /*        Text(
@@ -536,7 +587,6 @@ fun MainScreenContent(
         HorizontalPager(
             state = pagerState,
             modifier = Modifier
-                .weight(1f)
                 .fillMaxWidth()
         ) { page ->
             when (page) {
