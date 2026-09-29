@@ -372,7 +372,7 @@ fun LocationListDialog(
                                 fontWeight = FontWeight.Bold
                             )
                             Text(
-                                text = "Koord: ${location.latitude.format(4)}°, ${location.longitude.format(4)}°, ${location.altitude.format(0)}m",
+                                text = "Koord: ${location.latitude.format(5)}°, ${location.longitude.format(5)}°, ${location.altitude.format(0)}m",
                                 style = MaterialTheme.typography.bodySmall
                             )
                             if (location.created_at.isNotBlank()) {
@@ -609,9 +609,6 @@ fun MainScreenContent(
                         timeFormatter = timeFormatter,
                         onCheckStatus = onCheckStatus,
                     )
-                }
-                2 -> {
-
                 }
             }
         }

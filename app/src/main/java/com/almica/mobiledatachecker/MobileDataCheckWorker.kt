@@ -10,7 +10,9 @@ import com.google.android.gms.tasks.CancellationTokenSource
 import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
 import kotlinx.coroutines.tasks.await
+import kotlinx.coroutines.withTimeoutOrNull
 import timber.log.Timber
+import kotlin.time.Duration.Companion.seconds
 
 class MobileDataCheckWorker(context: Context, workerParams: WorkerParameters) : CoroutineWorker(context, workerParams) {
     override suspend fun doWork(): Result {
@@ -66,22 +68,43 @@ class MobileDataCheckWorker(context: Context, workerParams: WorkerParameters) : 
     @SuppressLint("MissingPermission")
     private suspend fun getCurrentLocation(): android.location.Location? {
         val fusedLocationClient = LocationServices.getFusedLocationProviderClient(applicationContext)
-
         return try {
-            // Request high accuracy location with a timeout/cancellation token
             val cts = CancellationTokenSource()
-            val location = fusedLocationClient.getCurrentLocation(
-                Priority.PRIORITY_HIGH_ACCURACY,
-                cts.token
-            ).await()
 
-            location
+            val location = try {
+                // Request a fresh high-accuracy GPS location fix with a 20-second timeout
+                withTimeoutOrNull(20.seconds) {
+                    fusedLocationClient.getCurrentLocation(
+                        Priority.PRIORITY_HIGH_ACCURACY,
+                        cts.token
+                    ).await()
+                }
+            } finally {
+                // Ensure the location request is cancelled if we timeout or move on
+                cts.cancel()
+            }
+
+            if (location == null) {
+                Timber.w("getCurrentLocation timed out or returned null after 20 seconds. Falling back to lastLocation.")
+            } else {
+                Timber.i("Fresh location obtained successfully.")
+                Timber.i("Location: ${location.latitude}, ${location.longitude}, ${location.altitude}m")
+            }
+
+            // Fallback to lastLocation if getCurrentLocation timed out or returned null
+            //  fusedLocationClient.lastLocation.await() retrieve the cached location
+            location ?: fusedLocationClient.lastLocation.await()
         } catch (e: SecurityException) {
             Timber.e(e, "Location permission not granted")
             null
         } catch (e: Exception) {
-            Timber.e(e, "Failed to get location")
-            null
+            Timber.w(e, "Failed to get fresh location, attempting fallback to lastLocation")
+            try {
+                fusedLocationClient.lastLocation.await()
+            } catch (fallbackEx: Exception) {
+                Timber.e(fallbackEx, "Failed to get last known location")
+                null
+            }
         }
     }
 }
