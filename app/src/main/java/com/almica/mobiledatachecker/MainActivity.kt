@@ -4,6 +4,10 @@ import android.Manifest
 import android.os.Build
 import android.os.Bundle
 import android.content.Intent
+import android.content.pm.PackageManager
+import android.telephony.SmsManager
+import android.widget.Toast
+import androidx.core.content.ContextCompat
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
@@ -76,6 +80,7 @@ fun MainScreen(viewModel: MainViewModel) {
 
     val locationList by viewModel.locationList.collectAsStateWithLifecycle()
     var showLocationDialog by remember { mutableStateOf(false) }
+    var showSmsDialog by remember { mutableStateOf(false) }
 
     var hasRequiredPermissions by remember { mutableStateOf(false) }
     var showBackgroundRationale by remember { mutableStateOf(false) }
@@ -95,9 +100,9 @@ fun MainScreen(viewModel: MainViewModel) {
                 results[Manifest.permission.ACCESS_COARSE_LOCATION] == true
 
         if (foregroundLocationGranted) {
-            val hasBackground = androidx.core.content.ContextCompat.checkSelfPermission(
+            val hasBackground = ContextCompat.checkSelfPermission(
                 context, Manifest.permission.ACCESS_BACKGROUND_LOCATION
-            ) == android.content.pm.PackageManager.PERMISSION_GRANTED
+            ) == PackageManager.PERMISSION_GRANTED
             if (!hasBackground) {
                 showBackgroundRationale = true
             }
@@ -176,11 +181,13 @@ fun MainScreen(viewModel: MainViewModel) {
                     viewModel.testWorkerImmediately()
                     lastStatusChangeTime = System.currentTimeMillis()
                 },
+                onSendSmsNow = {
+                    showSmsDialog = true
+                },
                 onFetchLocations = {
-                    viewModel.fetchLocationsFromBplaced()
-                    showLocationDialog = true
-                }
-            )
+                viewModel.fetchLocationsFromBplaced()
+                showLocationDialog = true
+            })
         }
     }
 
@@ -239,6 +246,38 @@ fun MainScreen(viewModel: MainViewModel) {
             }
         )
     }
+
+    if (showSmsDialog) {
+        SendSmsDialog(
+            initialPhone = viewModel.getPhoneNumber(),
+            onDismiss = { showSmsDialog = false },
+            onSend = { phone, message ->
+                showSmsDialog = false
+                val hasSmsPermission = ContextCompat.checkSelfPermission(
+                    context, Manifest.permission.SEND_SMS
+                ) == PackageManager.PERMISSION_GRANTED
+
+                if (hasSmsPermission) {
+                    try {
+                        val smsManager = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                            context.getSystemService(SmsManager::class.java)
+                        } else {
+                            @Suppress("DEPRECATION")
+                            SmsManager.getDefault()
+                        }
+                        smsManager.sendTextMessage(phone, null, message, null, null)
+                        Toast.makeText(context, "SMS gesendet an $phone", Toast.LENGTH_SHORT).show()
+                        Timber.i("SMS sent to $phone: $message")
+                    } catch (e: Exception) {
+                        Timber.e(e, "Fehler beim Senden der SMS")
+                        Toast.makeText(context, "Fehler beim Senden der SMS: ${e.localizedMessage}", Toast.LENGTH_LONG).show()
+                    }
+                } else {
+                    Toast.makeText(context, "SEND_SMS Berechtigung nicht erteilt", Toast.LENGTH_LONG).show()
+                }
+            }
+        )
+    }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -284,6 +323,64 @@ fun SettingsDialog(
                 }
             ) {
                 Text("Speichern")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Abbrechen")
+            }
+        }
+    )
+}
+
+@Composable
+fun SendSmsDialog(
+    initialPhone: String,
+    initialMessage: String = "Test SMS vom Standort Monitor",
+    onDismiss: () -> Unit,
+    onSend: (phone: String, message: String) -> Unit
+) {
+    var phone by remember { mutableStateOf(initialPhone) }
+    var message by remember { mutableStateOf(initialMessage) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("SMS senden") },
+        text = {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                OutlinedTextField(
+                    value = phone,
+                    onValueChange = { phone = it },
+                    label = { Text("Empfänger Telefonnummer") },
+                    modifier = Modifier.fillMaxWidth(),
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
+                    singleLine = true
+                )
+                OutlinedTextField(
+                    value = message,
+                    onValueChange = { message = it },
+                    label = { Text("SMS Nachricht") },
+                    modifier = Modifier.fillMaxWidth(),
+                    minLines = 3,
+                    maxLines = 5
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(
+                onClick = {
+                    if (phone.isNotBlank() && message.isNotBlank()) {
+                        onSend(phone, message)
+                    }
+                },
+                enabled = phone.isNotBlank() && message.isNotBlank()
+            ) {
+                Text("Senden")
             }
         },
         dismissButton = {
@@ -410,7 +507,8 @@ fun WorkerControlCard(
     modifier: Modifier = Modifier,
     containerColor: Color = CardDefaults.cardColors().containerColor,
     contentColor: Color = CardDefaults.cardColors().contentColor,
-    onSendLocationNow: () -> Unit
+    onSendLocationNow: () -> Unit,
+    onSendSmsNow: () -> Unit
 ) {
     Card(
         modifier = modifier.fillMaxWidth(),
@@ -471,6 +569,16 @@ fun WorkerControlCard(
                     .height(50.dp)
             ) {
                 Text("Standort jetzt senden")
+            }
+            // Send SMS now
+            OutlinedButton(
+                onClick = onSendSmsNow,
+                enabled = true,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(50.dp)
+            ) {
+                Text("SMS jetzt senden")
             }
         }
     }
@@ -536,7 +644,8 @@ fun MainScreenContent(
     onStartWorker: () -> Unit,
     onStopWorker: () -> Unit,
     onSendLocationNow: () -> Unit,
-    onFetchLocations: () -> Unit
+    onFetchLocations: () -> Unit,
+    onSendSmsNow: () -> Unit
 ) {
     val timeFormatter = remember { SimpleDateFormat("HH:mm:ss", Locale.getDefault()) }
     val deviceName = getDeviceName()
@@ -597,7 +706,8 @@ fun MainScreenContent(
                         onStartWorker = onStartWorker,
                         onStopWorker = onStopWorker,
                         onFetchLocations = onFetchLocations,
-                        onSendLocationNow = onSendLocationNow
+                        onSendLocationNow = onSendLocationNow,
+                        onSendSmsNow = onSendSmsNow
                     )
                 }
                 1 -> {
@@ -632,7 +742,8 @@ fun MainScreenActivePreview() {
                 onStartWorker = {},
                 onStopWorker = {},
                 onSendLocationNow = {},
-                onFetchLocations = {}
+                onFetchLocations = {},
+                onSendSmsNow = {}
             )
         }
     }
@@ -655,7 +766,8 @@ fun MainScreenInactivePreview() {
                 onStartWorker = {},
                 onStopWorker = {},
                 onSendLocationNow = {},
-                onFetchLocations = {}
+                onFetchLocations = {},
+                onSendSmsNow = {}
             )
         }
     }
