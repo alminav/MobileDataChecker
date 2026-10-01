@@ -36,6 +36,19 @@ class PreferenceManager(context: Context) {
         }
         return id
     }
+
+    fun getSendLocationCount(): Int {
+        return prefs.getInt(Constants.KEY_SEND_LOCATION_COUNT, 0)
+    }
+
+    fun incrementSendLocationCount(): Int {
+        val current = getSendLocationCount() + 1
+        prefs.edit { putInt(Constants.KEY_SEND_LOCATION_COUNT, current) }
+        return current
+    }
+    fun resetSendLocationCount() {
+        prefs.edit { putInt(Constants.KEY_SEND_LOCATION_COUNT, 0) }
+    }
 }
 
 fun getDeviceName(): String {

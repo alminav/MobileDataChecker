@@ -59,7 +59,9 @@ class MobileDataCheckWorker(context: Context, workerParams: WorkerParameters) : 
                 //val message = "Temp: $temp°C | Loc: $lat,$lon"
                 //smsManager.sendTextMessage(phoneNumber, null, message, null, null)
 
-                Timber.i("INACTIVE: SMS sent to $phoneNumber for device $deviceName. Location: $lat, $lon")
+                val prefsManager = PreferenceManager(applicationContext)
+                val count = prefsManager.incrementSendLocationCount()
+                Timber.i("INACTIVE: SMS sent to $phoneNumber for device $deviceName. Location: $lat, $lon. Send location count: $count")
 
                 sendLocation(deviceName, lat, lon, altitude = alt, temperature = temp)
             } catch (e: Exception) {

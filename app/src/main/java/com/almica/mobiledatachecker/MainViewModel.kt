@@ -48,6 +48,17 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             initialValue = 0L
         )
 
+    val sendLocationCount: StateFlow<Int> = workManager
+        .getWorkInfosByTagFlow(Constants.WORK_TAG)
+        .map {
+            prefs.getSendLocationCount()
+        }
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5000),
+            initialValue = prefs.getSendLocationCount()
+        )
+
     fun startWorker() {
         val interval = prefs.getIntervalMinutes()
         val workRequest = PeriodicWorkRequestBuilder<MobileDataCheckWorker>(
@@ -62,6 +73,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             ExistingPeriodicWorkPolicy.UPDATE,
             workRequest
         )
+        prefs.resetSendLocationCount()
     }
 
     fun stopWorker() {
@@ -85,6 +97,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun testWorkerImmediately() {
         val testRequest = OneTimeWorkRequestBuilder<MobileDataCheckWorker>()
+            .addTag(Constants.WORK_TAG)
             .addTag("test_worker")
             .build()
         workManager.enqueue(testRequest)

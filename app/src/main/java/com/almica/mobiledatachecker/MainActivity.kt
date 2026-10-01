@@ -20,14 +20,19 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.Send
+import androidx.compose.material.icons.filled.CloudDownload
+import androidx.compose.material.icons.filled.LocationOn
+import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Start
+import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material.icons.filled.TabletAndroid
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -74,6 +79,7 @@ fun MainScreen(viewModel: MainViewModel) {
     val isMobileDataLive by viewModel.isMobileDataActive.collectAsStateWithLifecycle(initialValue = false)
     val isWorkerRunning by viewModel.isWorkerRunning.collectAsStateWithLifecycle(initialValue = false)
     val workerLastRunTime by viewModel.workerLastRunTime.collectAsStateWithLifecycle(initialValue = 0L)
+    val sendLocationCount by viewModel.sendLocationCount.collectAsStateWithLifecycle(initialValue = 0)
 
     var lastStatusChangeTime by remember { mutableLongStateOf(System.currentTimeMillis()) }
     var showSettingsDialog by remember { mutableStateOf(false) }
@@ -166,6 +172,7 @@ fun MainScreen(viewModel: MainViewModel) {
                 isMobileDataLive = isMobileDataLive,
                 isWorkerRunning = isWorkerRunning,
                 workerInterval = viewModel.getIntervalMinutes(),
+                sendLocationCount = sendLocationCount,
                 lastStatusChangeTime = lastStatusChangeTime,
                 onCheckStatus = {
                     if (isMobileDataLive && hasRequiredPermissions) {
@@ -175,7 +182,9 @@ fun MainScreen(viewModel: MainViewModel) {
 //                    val intent = Intent(context, BplacedActivity::class.java)
 //                    context.startActivity(intent)
                 },
-                onStartWorker = { viewModel.startWorker() },
+                onStartWorker = {
+                    viewModel.startWorker()
+                },
                 onStopWorker = { viewModel.stopWorker() },
                 onSendLocationNow = {
                     viewModel.testWorkerImmediately()
@@ -440,7 +449,9 @@ fun LocationListDialog(
                         else
                             ""
                     }) {
-                        Icon(imageVector = Icons.Default.TabletAndroid, contentDescription = "Filter by device")
+                        Icon(imageVector = Icons.Default.TabletAndroid, contentDescription = "Filter by device",
+                            tint = if (searchQuery.isBlank()) MaterialTheme.colorScheme.primary else
+                                MaterialTheme.colorScheme.error)
                     }
                 }
 
@@ -460,6 +471,7 @@ fun LocationListDialog(
                                     val mapIntent = Intent(Intent.ACTION_VIEW, gmmIntentUri)
                                     mapIntent.setPackage("com.google.android.apps.maps")
                                     context.startActivity(mapIntent)
+                                    searchQuery = location.title.orEmpty()
                                 }
                                 .padding(vertical = 8.dp, horizontal = 4.dp)
                         ) {
@@ -501,6 +513,7 @@ fun LocationListDialog(
 fun WorkerControlCard(
     isWorkerRunning: Boolean,
     workerInterval: Long,
+    sendLocationCount: Int,
     onStartWorker: () -> Unit,
     onStopWorker: () -> Unit,
     onFetchLocations: () -> Unit,
@@ -519,36 +532,54 @@ fun WorkerControlCard(
         )
     ) {
         Column(
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier.fillMaxWidth().padding(16.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
+            Text(
+                text = "Gesendete Standorte: $sendLocationCount",
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.Bold
+            )
             // Start Job Button
-            Button(
+            OutlinedButton(
                 onClick = onStartWorker,
                 enabled = !isWorkerRunning,
-                modifier = Modifier.fillMaxWidth()
+                modifier = Modifier.fillMaxWidth().height(50.dp)
             ) {
-                Text(
-                    text = if (isWorkerRunning) {
-                        stringResource(R.string.worker_running, workerInterval)
-                    } else {
-                        stringResource(R.string.worker_start, workerInterval)
-                    }
-                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Filled.Start, contentDescription = null)
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Text(modifier = Modifier.weight(1f),
+                        text = if (isWorkerRunning) {
+                            stringResource(R.string.worker_running, workerInterval)
+                        } else {
+                            stringResource(R.string.worker_start, workerInterval)
+                        }
+                    )
+                }
             }
 
-            // Stop Job Button
-            Button(
+// Stop Job Button
+            OutlinedButton(
                 onClick = onStopWorker,
                 enabled = isWorkerRunning,
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = MaterialTheme.colorScheme.error,
-                    contentColor = MaterialTheme.colorScheme.onError
-                ),
-                modifier = Modifier.fillMaxWidth()
+                modifier = Modifier.fillMaxWidth().height(50.dp)
             ) {
-                Text(text = stringResource(R.string.worker_stop))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        imageVector = Icons.Default.Stop,
+                        contentDescription = null,
+                        tint = if (isWorkerRunning) {
+                            MaterialTheme.colorScheme.error
+                        } else {
+                            MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
+                        }
+                    )
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Text(modifier = Modifier.weight(1f),
+                        text = stringResource(R.string.worker_stop))
+                }
             }
 
             // Fetch Locations Button
@@ -558,7 +589,11 @@ fun WorkerControlCard(
                     .fillMaxWidth()
                     .height(50.dp)
             ) {
-                Text(text = stringResource(R.string.get_locations))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Default.CloudDownload, contentDescription = null)
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Text(modifier = Modifier.weight(1f), text = stringResource(R.string.get_locations))
+                }
             }
             // Send Location now
             OutlinedButton(
@@ -568,7 +603,11 @@ fun WorkerControlCard(
                     .fillMaxWidth()
                     .height(50.dp)
             ) {
-                Text("Standort jetzt senden")
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Default.LocationOn, contentDescription = null)
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Text(modifier = Modifier.weight(1f), text = "Standort jetzt senden")
+                }
             }
             // Send SMS now
             OutlinedButton(
@@ -578,7 +617,11 @@ fun WorkerControlCard(
                     .fillMaxWidth()
                     .height(50.dp)
             ) {
-                Text("SMS jetzt senden")
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.AutoMirrored.Filled.Send, contentDescription = null)
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Text(modifier = Modifier.weight(1f), text = "SMS jetzt senden")
+                }
             }
         }
     }
@@ -626,9 +669,12 @@ fun StatusCard(
                 onClick = onCheckStatus,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(50.dp)
+                    .height(60.dp)
             ) {
-                Text("Status jetzt prüfen")
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Icon(Icons.Default.Refresh, contentDescription = null)
+                    Text("Status jetzt prüfen")
+                }
             }
         }
     }
@@ -639,6 +685,7 @@ fun MainScreenContent(
     isMobileDataLive: Boolean,
     isWorkerRunning: Boolean,
     workerInterval: Long,
+    sendLocationCount: Int,
     lastStatusChangeTime: Long,
     onCheckStatus: () -> Unit,
     onStartWorker: () -> Unit,
@@ -703,6 +750,7 @@ fun MainScreenContent(
                     WorkerControlCard(
                         isWorkerRunning = isWorkerRunning,
                         workerInterval = workerInterval,
+                        sendLocationCount = sendLocationCount,
                         onStartWorker = onStartWorker,
                         onStopWorker = onStopWorker,
                         onFetchLocations = onFetchLocations,
@@ -737,6 +785,7 @@ fun MainScreenActivePreview() {
                 isMobileDataLive = true,
                 isWorkerRunning = false,
                 workerInterval = 15L,
+                sendLocationCount = 3,
                 lastStatusChangeTime = System.currentTimeMillis(),
                 onCheckStatus = {},
                 onStartWorker = {},
@@ -761,6 +810,7 @@ fun MainScreenInactivePreview() {
                 isMobileDataLive = false,
                 isWorkerRunning = true,
                 workerInterval = 15L,
+                sendLocationCount = 5,
                 lastStatusChangeTime = System.currentTimeMillis(),
                 onCheckStatus = {},
                 onStartWorker = {},
