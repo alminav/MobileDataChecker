@@ -128,7 +128,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    fun executeLocationCleanup() {
+    fun executeLocationCleanup(feedBack: (String) -> Unit) {
         viewModelScope.launch(Dispatchers.IO) {
             try {
                 val response = NetworkClient.bplacedApiService.deleteAllLocations()
@@ -137,20 +137,28 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     if (apiResponse.status == "success") {
                         // Updating this StateFlow will trigger the collector in MainActivity
                         _locationList.value = emptyList()
-                        Timber.i("Location cleanup ready")
+                        val msg = apiResponse.message
+                        feedBack(msg)
+                        Timber.i(msg)
                     } else {
-                        Timber.i("Fehler: ${apiResponse.message}")
+                        val msg = "Fehler: ${apiResponse.message}"
+                        feedBack(msg)
+                        Timber.e(msg)
                     }
                 } else {
-                    Timber.e("Server-Fehler: ${response.code()}")
+                    val msg = "Server-Fehler: ${response.code()}"
+                    feedBack(msg)
+                    Timber.e(msg)
                 }
             } catch (e: Exception) {
-                Timber.e(e, "Netzwerkfehler: ${e.localizedMessage}")
+                val msg = "Netzwerkfehler: ${e.localizedMessage}"
+                feedBack(msg)
+                Timber.e(msg)
             }
         }
     }
 
-    fun executeLocationDeleteByFilter(filter: String) {
+    fun executeLocationDeleteByFilter(filter: String, feedBack: (String) -> Unit) {
         viewModelScope.launch(Dispatchers.IO) {
             try {
                 val response = NetworkClient.bplacedApiService.deleteLocationByFilter(filter)
@@ -159,15 +167,59 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     if (apiResponse.status == "success") {
                         // Updating this StateFlow will trigger the collector in MainActivity
                         _locationList.value = emptyList()
-                        Timber.i("Location cleanup ready")
+                        val msg = apiResponse.message
+                        feedBack(msg)
+                        Timber.i(msg)
                     } else {
-                        Timber.i("Fehler: ${apiResponse.message}")
+                        val msg = "Fehler: ${apiResponse.message}"
+                        feedBack(msg)
+                        Timber.e(msg)
                     }
                 } else {
-                    Timber.e("Server-Fehler: ${response.code()}")
+                    val msg = "Server-Fehler: ${response.code()}"
+                    feedBack(msg)
+                    Timber.e(msg)
                 }
             } catch (e: Exception) {
-                Timber.e(e, "Netzwerkfehler: ${e.localizedMessage}")
+                val msg = "Netzwerkfehler: ${e.localizedMessage}"
+                feedBack(msg)
+                Timber.e(e, msg)
+            }
+        }
+    }
+
+    fun executeDeleteOldRecords(days: Int, feedBack: (String) -> Unit) {
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                // Parameter 'days' wird hier übergeben
+                val response = NetworkClient.bplacedApiService.deleteOldRecords(days)
+
+                withContext(Dispatchers.Main) {
+                    if (response.isSuccessful && response.body() != null) {
+                        val apiResponse = response.body()!!
+
+                        if (apiResponse.status == "success") {
+                            val msg = apiResponse.message
+                            feedBack(msg)
+                            Timber.i(msg)
+                            //fetchLocationsFromBplaced()
+                        } else {
+                            val msg = "Old records delete error: ${apiResponse.message}"
+                            feedBack(msg)
+                            Timber.e(msg)
+                        }
+                    } else {
+                        val msg = "Server-Fehler: ${response.code()}"
+                        feedBack(msg)
+                        Timber.e(msg)
+                    }
+                }
+            } catch (e: Exception) {
+                withContext(Dispatchers.Main) {
+                    val msg = "Netzwerkfehler: ${e.localizedMessage}"
+                    feedBack(msg)
+                    Timber.e( "Netzwerkfehler: ${e.localizedMessage}")
+                }
             }
         }
     }

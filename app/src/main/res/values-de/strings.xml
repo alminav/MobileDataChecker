@@ -1,0 +1,40 @@
+<resources>
+    <string name="app_name">MobileDataChecker</string>
+    <string name="app_title">Mobile Data Checker</string>
+    <string name="sms_phone_number">+4915776049418</string>
+    <string name="actions">Steuerung</string>
+    <string name="status">Status</string>
+    <string name="worker_running">Hintergrund-Job läuft… (%1$d Min)</string>
+    <string name="worker_start">Hintergrund-Job starten (%1$d Min)</string>
+    <string name="worker_stop">Hintergrund-Job stoppen</string>
+    <string name="get_locations">Standorte abrufen</string>
+    <string name="delete_old_records_label">Alte Standortdaten löschen (Tage):</string>
+
+    <string name="settings">Einstellungen</string>
+    <string name="background_location_title">Hintergrundstandort</string>
+    <string name="background_location_rationale">Diese App benötigt Zugriff auf den Standort im Hintergrund.</string>
+    <string name="allow">Zulassen</string>
+    <string name="cancel">Abbrechen</string>
+    <string name="sms_sent_to">SMS gesendet an %1$s</string>
+    <string name="sms_error">Fehler beim Senden der SMS</string>
+    <string name="sms_permission_denied">SMS-Berechtigung verweigert</string>
+    <string name="sms_phone_label">Telefonnummer</string>
+    <string name="sms_interval_label">Intervall (Minuten)</string>
+    <string name="save">Speichern</string>
+    <string name="send_sms_title">SMS senden</string>
+    <string name="sms_recipient_label">Empfänger-Telefonnummer</string>
+    <string name="sms_message_label">Nachricht</string>
+    <string name="send">Senden</string>
+    <string name="locations_title">Standorte</string>
+    <string name="device_filter_label">Gerätefilter</string>
+    <string name="close">Schließen</string>
+    <string name="cleanup">Aufräumen</string>
+    <string name="locations_sent_count">Gesendete Standorte: %1$d</string>
+    <string name="send_location_now">Standort jetzt senden</string>
+    <string name="send_sms_now">SMS jetzt senden</string>
+    <string name="current_status_label">Letzte Statusprüfung: %1$s</string>
+    <string name="status_active">Mobile Daten AKTIV</string>
+    <string name="status_inactive">Mobile Daten INAKTIV</string>
+    <string name="check_status_now">Status jetzt prüfen</string>
+    <string name="device_label">Gerät: %1$s</string>
+</resources>

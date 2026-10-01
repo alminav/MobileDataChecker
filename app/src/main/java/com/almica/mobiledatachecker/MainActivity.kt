@@ -41,6 +41,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -87,6 +88,9 @@ fun MainScreen(viewModel: MainViewModel) {
     val locationList by viewModel.locationList.collectAsStateWithLifecycle()
     var showLocationDialog by remember { mutableStateOf(false) }
     var showSmsDialog by remember { mutableStateOf(false) }
+
+    val snackbarHostState = remember { SnackbarHostState() }
+    val scope = rememberCoroutineScope()
 
     var hasRequiredPermissions by remember { mutableStateOf(false) }
     var showBackgroundRationale by remember { mutableStateOf(false) }
@@ -156,12 +160,13 @@ fun MainScreen(viewModel: MainViewModel) {
     // you would typically clear the list in the ViewModel after dismissing.
 
     Scaffold(
+        snackbarHost = { SnackbarHost(hostState = snackbarHostState) },
         topBar = {
             TopAppBar(
-                title = { Text("Standort Monitor") },
+                title = { Text(stringResource(R.string.app_title)) },
                 actions = {
                     IconButton(onClick = { showSettingsDialog = true }) {
-                        Icon(imageVector = Icons.Default.Settings, contentDescription = "Settings")
+                        Icon(imageVector = Icons.Default.Settings, contentDescription = stringResource(R.string.settings))
                     }
                 }
             )
@@ -190,13 +195,24 @@ fun MainScreen(viewModel: MainViewModel) {
                     viewModel.testWorkerImmediately()
                     lastStatusChangeTime = System.currentTimeMillis()
                 },
+                onFetchLocations = {
+                    viewModel.fetchLocationsFromBplaced()
+                    showLocationDialog = true
+                },
                 onSendSmsNow = {
                     showSmsDialog = true
                 },
-                onFetchLocations = {
-                viewModel.fetchLocationsFromBplaced()
-                showLocationDialog = true
-            })
+                onDeleteOldRecords = {days ->
+                    viewModel.executeDeleteOldRecords(
+                        days,
+                        feedBack = { msg ->
+                            scope.launch {
+                                snackbarHostState.showSnackbar(msg)
+                            }
+                        },
+                    )
+                }
+            )
         }
     }
 
@@ -222,9 +238,22 @@ fun MainScreen(viewModel: MainViewModel) {
             onCleanup = {filter ->
                 Timber.i("Filter: $filter")
                 if (filter.isBlank())
-                    viewModel.executeLocationCleanup()
+                    viewModel.executeLocationCleanup(
+                        feedBack = { msg ->
+                            scope.launch {
+                                snackbarHostState.showSnackbar(msg)
+                            }
+                        }
+                    )
                 else
-                    viewModel.executeLocationDeleteByFilter(filter)
+                    viewModel.executeLocationDeleteByFilter(
+                        filter,
+                        feedBack = { msg ->
+                            scope.launch {
+                                snackbarHostState.showSnackbar(msg)
+                            }
+                        }
+                    )
                 showLocationDialog = false
 
             }
@@ -234,9 +263,9 @@ fun MainScreen(viewModel: MainViewModel) {
     if (showBackgroundRationale) {
         AlertDialog(
             onDismissRequest = { showBackgroundRationale = false },
-            title = { Text("Hintergrund-Standortzugriff") },
+            title = { Text(stringResource(R.string.background_location_title)) },
             text = {
-                Text("Diese App benötigt Zugriff auf Ihren Standort im Hintergrund.\n\nBitte wähle in den folgenden Einstellungen 'Immer zulassen'.")
+                Text(stringResource(R.string.background_location_rationale))
             },
             confirmButton = {
                 TextButton(
@@ -245,12 +274,12 @@ fun MainScreen(viewModel: MainViewModel) {
                         backgroundPermissionLauncher.launch(Manifest.permission.ACCESS_BACKGROUND_LOCATION)
                     }
                 ) {
-                    Text("Zulassen")
+                    Text(stringResource(R.string.allow))
                 }
             },
             dismissButton = {
                 TextButton(onClick = { showBackgroundRationale = false }) {
-                    Text("Abbrechen")
+                    Text(stringResource(R.string.cancel))
                 }
             }
         )
@@ -275,14 +304,14 @@ fun MainScreen(viewModel: MainViewModel) {
                             SmsManager.getDefault()
                         }
                         smsManager.sendTextMessage(phone, null, message, null, null)
-                        Toast.makeText(context, "SMS gesendet an $phone", Toast.LENGTH_SHORT).show()
+                        Toast.makeText(context, context.getString(R.string.sms_sent_to, phone), Toast.LENGTH_SHORT).show()
                         Timber.i("SMS sent to $phone: $message")
                     } catch (e: Exception) {
-                        Timber.e(e, "Fehler beim Senden der SMS")
-                        Toast.makeText(context, "Fehler beim Senden der SMS: ${e.localizedMessage}", Toast.LENGTH_LONG).show()
+                        Timber.e(e, context.getString(R.string.sms_error))
+                        Toast.makeText(context, "${context.getString(R.string.sms_error)}: ${e.localizedMessage}", Toast.LENGTH_LONG).show()
                     }
                 } else {
-                    Toast.makeText(context, "SEND_SMS Berechtigung nicht erteilt", Toast.LENGTH_LONG).show()
+                    Toast.makeText(context, context.getString(R.string.sms_permission_denied), Toast.LENGTH_LONG).show()
                 }
             }
         )
@@ -302,7 +331,7 @@ fun SettingsDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Einstellungen") },
+        title = { Text(stringResource(R.string.settings)) },
         text = {
             Column(modifier = Modifier
                 .fillMaxWidth()
@@ -310,7 +339,7 @@ fun SettingsDialog(
                 OutlinedTextField(
                     value = phone,
                     onValueChange = { phone = it },
-                    label = { Text("SMS Telefonnummer") },
+                    label = { Text(stringResource(R.string.sms_phone_label)) },
                     modifier = Modifier.fillMaxWidth(),
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone)
                 )
@@ -318,7 +347,7 @@ fun SettingsDialog(
                 OutlinedTextField(
                     value = intervalStr,
                     onValueChange = { if (it.all { char -> char.isDigit() }) intervalStr = it },
-                    label = { Text("Check Intervall (Minuten, min. 15)") },
+                    label = { Text(stringResource(R.string.sms_interval_label)) },
                     modifier = Modifier.fillMaxWidth(),
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
                 )
@@ -331,12 +360,12 @@ fun SettingsDialog(
                     onSave(phone, if (interval < 15) 15L else interval)
                 }
             ) {
-                Text("Speichern")
+                Text(stringResource(R.string.save))
             }
         },
         dismissButton = {
             TextButton(onClick = onDismiss) {
-                Text("Abbrechen")
+                Text(stringResource(R.string.cancel))
             }
         }
     )
@@ -354,7 +383,7 @@ fun SendSmsDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("SMS senden") },
+        title = { Text(stringResource(R.string.send_sms_title)) },
         text = {
             Column(
                 modifier = Modifier
@@ -365,7 +394,7 @@ fun SendSmsDialog(
                 OutlinedTextField(
                     value = phone,
                     onValueChange = { phone = it },
-                    label = { Text("Empfänger Telefonnummer") },
+                    label = { Text(stringResource(R.string.sms_recipient_label)) },
                     modifier = Modifier.fillMaxWidth(),
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
                     singleLine = true
@@ -373,7 +402,7 @@ fun SendSmsDialog(
                 OutlinedTextField(
                     value = message,
                     onValueChange = { message = it },
-                    label = { Text("SMS Nachricht") },
+                    label = { Text(stringResource(R.string.sms_message_label)) },
                     modifier = Modifier.fillMaxWidth(),
                     minLines = 3,
                     maxLines = 5
@@ -389,12 +418,12 @@ fun SendSmsDialog(
                 },
                 enabled = phone.isNotBlank() && message.isNotBlank()
             ) {
-                Text("Senden")
+                Text(stringResource(R.string.send))
             }
         },
         dismissButton = {
             TextButton(onClick = onDismiss) {
-                Text("Abbrechen")
+                Text(stringResource(R.string.cancel))
             }
         }
     )
@@ -424,7 +453,7 @@ fun LocationListDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Standorte") },
+        title = { Text(stringResource(R.string.locations_title)) },
         text = {
             Column(
                 modifier = Modifier
@@ -437,7 +466,7 @@ fun LocationListDialog(
                     OutlinedTextField(
                         value = searchQuery,
                         onValueChange = { searchQuery = it },
-                        label = { Text("Device Filter") },
+                        label = { Text(stringResource(R.string.device_filter_label)) },
                         modifier = Modifier
                             .weight(1f)
                             .padding(bottom = 8.dp),
@@ -498,12 +527,12 @@ fun LocationListDialog(
         },
         confirmButton = {
             TextButton(onClick = onDismiss) {
-                Text("Close")
+                Text(stringResource(R.string.close))
             }
         },
         dismissButton = {
             TextButton(onClick = { onCleanup(searchQuery) }) {
-                Text("Cleanup")
+                Text(stringResource(R.string.cleanup))
             }
         }
     )
@@ -532,12 +561,14 @@ fun WorkerControlCard(
         )
     ) {
         Column(
-            modifier = Modifier.fillMaxWidth().padding(16.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             Text(
-                text = "Gesendete Standorte: $sendLocationCount",
+                text = stringResource(R.string.locations_sent_count, sendLocationCount),
                 style = MaterialTheme.typography.titleSmall,
                 fontWeight = FontWeight.Bold
             )
@@ -545,7 +576,9 @@ fun WorkerControlCard(
             OutlinedButton(
                 onClick = onStartWorker,
                 enabled = !isWorkerRunning,
-                modifier = Modifier.fillMaxWidth().height(50.dp)
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(50.dp)
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Icon(Icons.Filled.Start, contentDescription = null)
@@ -564,7 +597,9 @@ fun WorkerControlCard(
             OutlinedButton(
                 onClick = onStopWorker,
                 enabled = isWorkerRunning,
-                modifier = Modifier.fillMaxWidth().height(50.dp)
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(50.dp)
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Icon(
@@ -606,7 +641,7 @@ fun WorkerControlCard(
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Icon(Icons.Default.LocationOn, contentDescription = null)
                     Spacer(modifier = Modifier.width(12.dp))
-                    Text(modifier = Modifier.weight(1f), text = "Standort jetzt senden")
+                    Text(modifier = Modifier.weight(1f), text = stringResource(R.string.send_location_now))
                 }
             }
             // Send SMS now
@@ -620,7 +655,7 @@ fun WorkerControlCard(
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Icon(Icons.AutoMirrored.Filled.Send, contentDescription = null)
                     Spacer(modifier = Modifier.width(12.dp))
-                    Text(modifier = Modifier.weight(1f), text = "SMS jetzt senden")
+                    Text(modifier = Modifier.weight(1f), text = stringResource(R.string.send_sms_now))
                 }
             }
         }
@@ -635,7 +670,8 @@ fun StatusCard(
     contentColor: Color,
     timeFormatter: SimpleDateFormat,
     onCheckStatus: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    onDeleteOldRecords: (Int) -> Unit
 ) {
     val formattedTime = remember(lastStatusChangeTime) {
         timeFormatter.format(Date(lastStatusChangeTime))
@@ -656,12 +692,12 @@ fun StatusCard(
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Text(
-                text = "Aktueller Status $formattedTime:",
+                text = stringResource(R.string.current_status_label, formattedTime),
                 style = MaterialTheme.typography.titleMedium
             )
             Text(
-                text = if (isMobileDataLive) "AKTIVIERT (Mobilnetz)" else "DEAKTIVIERT / WLAN",
-                style = MaterialTheme.typography.headlineSmall,
+                text = if (isMobileDataLive) stringResource(R.string.status_active) else stringResource(R.string.status_inactive),
+                style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Black
             )
             Spacer(modifier = Modifier.height(12.dp))
@@ -673,7 +709,33 @@ fun StatusCard(
             ) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Icon(Icons.Default.Refresh, contentDescription = null)
-                    Text("Status jetzt prüfen")
+                    Text(stringResource(R.string.check_status_now))
+                }
+            }
+            Spacer(modifier = Modifier.height(12.dp))
+            HorizontalDivider()
+            Spacer(modifier = Modifier.height(12.dp))
+            // Fetch Locations Button
+            Text(
+                text = stringResource(R.string.delete_old_records_label),
+                style = MaterialTheme.typography.bodyMedium,
+                textAlign = TextAlign.Center,
+                modifier = Modifier
+                    .padding(bottom = 8.dp)
+                    .fillMaxWidth()
+            )
+
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(3.dp),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                for (days in 1..4) {
+                    OutlinedButton(
+                        onClick = { onDeleteOldRecords(days) },
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Text(text = "> $days")
+                    }
                 }
             }
         }
@@ -692,7 +754,8 @@ fun MainScreenContent(
     onStopWorker: () -> Unit,
     onSendLocationNow: () -> Unit,
     onFetchLocations: () -> Unit,
-    onSendSmsNow: () -> Unit
+    onSendSmsNow: () -> Unit,
+    onDeleteOldRecords: (Int) -> Unit
 ) {
     val timeFormatter = remember { SimpleDateFormat("HH:mm:ss", Locale.getDefault()) }
     val deviceName = getDeviceName()
@@ -722,7 +785,7 @@ fun MainScreenContent(
             color = MaterialTheme.colorScheme.onBackground
         )*/
         Text(
-            text = "Device: $deviceName",
+            text = stringResource(R.string.device_label, deviceName),
             style = MaterialTheme.typography.bodyMedium,
             fontWeight = FontWeight.Bold,
             color = MaterialTheme.colorScheme.onBackground
@@ -766,6 +829,9 @@ fun MainScreenContent(
                         contentColor = contentColor,
                         timeFormatter = timeFormatter,
                         onCheckStatus = onCheckStatus,
+                        onDeleteOldRecords = { days ->
+                            onDeleteOldRecords(days)
+                        }
                     )
                 }
             }
@@ -791,6 +857,7 @@ fun MainScreenActivePreview() {
                 onStartWorker = {},
                 onStopWorker = {},
                 onSendLocationNow = {},
+                onDeleteOldRecords = {},
                 onFetchLocations = {},
                 onSendSmsNow = {}
             )
@@ -817,6 +884,7 @@ fun MainScreenInactivePreview() {
                 onStopWorker = {},
                 onSendLocationNow = {},
                 onFetchLocations = {},
+                onDeleteOldRecords = {},
                 onSendSmsNow = {}
             )
         }
