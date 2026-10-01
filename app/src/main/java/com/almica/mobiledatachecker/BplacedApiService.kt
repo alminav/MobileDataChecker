@@ -33,5 +33,9 @@ interface BplacedApiService {
     suspend fun deleteLocationByFilter(
         @Field("title") title: String
     ): Response<ApiResponse>
-
+    @FormUrlEncoded
+    @POST("delete_old.php")
+    suspend fun deleteOldRecords(
+        @Field("days") days: Int
+    ): Response<ApiResponse>
 }
