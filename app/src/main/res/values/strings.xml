@@ -29,6 +29,7 @@
     <string name="device_filter_label">Device filter</string>
     <string name="close">Close</string>
     <string name="cleanup">Clean up</string>
+    <string name="cleanup_old_records">Clean up old records</string>
     <string name="locations_sent_count">Locations sent: %1$d</string>
     <string name="send_location_now">Send location now</string>
     <string name="send_sms_now">Send SMS now</string>
@@ -37,5 +38,6 @@
     <string name="status_inactive">Mobile Data INACTIVE</string>
     <string name="check_status_now">Check status now</string>
     <string name="enable_notifications_label">Enable notifications</string>
+    <string name="fetch_limit_all">All</string>
     <string name="device_label">Gerät: %1$s</string>
 </resources>

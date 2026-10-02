@@ -5,6 +5,7 @@ import retrofit2.http.Field
 import retrofit2.http.FormUrlEncoded
 import retrofit2.http.GET
 import retrofit2.http.POST
+import retrofit2.http.Query
 
 data class ApiResponse(
     val status: String,
@@ -38,4 +39,9 @@ interface BplacedApiService {
     suspend fun deleteOldRecords(
         @Field("days") days: Int
     ): Response<ApiResponse>
+    // Die aktualisierte GET-Methode mit dem optionalen count-Parameter
+    @GET("locations_count.php")
+    suspend fun getLocationsCount(
+        @Query("count") count: Int? = null
+    ): Response<FetchLocationsResponse>
 }

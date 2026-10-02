@@ -231,6 +231,45 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             }
         }
     }
+
+
+    // Wir setzen den Standardwert auf null, falls kein Limit übergeben wird
+    fun executeFetchLocationsCount(limit: Int? = null, feedBack: (String?) -> Unit) {
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                // Hier wird das Limit an die Retrofit-Schnittstelle übergeben
+                val response = NetworkClient.bplacedApiService.getLocationsCount(count = limit)
+                Timber.i("Anzahl der Orte: ${response.body()?.data?.size}")
+                withContext(Dispatchers.Main) {
+                    if (response.isSuccessful && response.body() != null) {
+                        val apiResponse = response.body()!!
+
+                        if (apiResponse.status == "success" && apiResponse.data != null) {
+                            // Updating this StateFlow will trigger the collector in MainActivity
+                            _locationList.value = apiResponse.data
+                            Timber.i("Anzahl geladener Orte: ${apiResponse.data.size}")
+                            for (location in apiResponse.data) {
+                                Timber.i("Ort: ${location.title} (${location.latitude}, ${location.longitude})")
+                            }
+                        } else {
+                            Timber.i("Fehler: ${apiResponse.message}")
+                        }
+                    } else {
+                        val msg = "Server-Fehler: ${response.code()}"
+                        feedBack(msg)
+                        Timber.e(msg)
+                    }
+                }
+            } catch (e: Exception) {
+                withContext(Dispatchers.Main) {
+                    val msg = "Netzwerkfehler: ${e.localizedMessage}"
+                    feedBack(msg)
+                    Timber.e( "Netzwerkfehler: ${e.localizedMessage}")
+                }
+            }
+        }
+    }
+
     override fun onCleared() {
         super.onCleared()
         networkMonitor.unregister()

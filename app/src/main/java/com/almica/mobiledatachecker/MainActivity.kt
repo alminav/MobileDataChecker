@@ -29,6 +29,7 @@ import androidx.compose.runtime.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.CloudDownload
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Settings
@@ -201,8 +202,10 @@ fun MainScreen(viewModel: MainViewModel) {
                     viewModel.testWorkerImmediately()
                     lastStatusChangeTime = System.currentTimeMillis()
                 },
-                onFetchLocations = {
-                    viewModel.fetchLocationsFromBplaced()
+                onFetchLocations = { limit ->
+                    viewModel.executeFetchLocationsCount(limit) { msg ->
+                        Timber.i("Fetch locations count: $msg")
+                    }
                     showLocationDialog = true
                 },
                 onSendSmsNow = {
@@ -560,7 +563,7 @@ fun WorkerControlCard(
     sendLocationCount: Int,
     onStartWorker: () -> Unit,
     onStopWorker: () -> Unit,
-    onFetchLocations: () -> Unit,
+    onFetchLocations: (Int?) -> Unit,
     modifier: Modifier = Modifier,
     containerColor: Color = CardDefaults.cardColors().containerColor,
     contentColor: Color = CardDefaults.cardColors().contentColor,
@@ -568,6 +571,10 @@ fun WorkerControlCard(
     onSendSmsNow: () -> Unit,
     onDeleteOldRecords: (Int) -> Unit
 ) {
+    var selectedLimit by remember { mutableStateOf<Int?>(5) }
+    var dropdownExpanded by remember { mutableStateOf(false) }
+    val limitOptions = listOf(null, 3, 5, 10, 20, 50)
+
     Card(
         modifier = modifier.fillMaxWidth(),
         shape = MaterialTheme.shapes.medium,
@@ -598,7 +605,7 @@ fun WorkerControlCard(
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Icon(Icons.Filled.Start, contentDescription = null)
-                    Spacer(modifier = Modifier.width(12.dp))
+                    Spacer(modifier = Modifier.width(8.dp))
                     Text(modifier = Modifier.weight(1f),
                         text = if (isWorkerRunning) {
                             stringResource(R.string.worker_running, workerInterval)
@@ -627,23 +634,58 @@ fun WorkerControlCard(
                             MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
                         }
                     )
-                    Spacer(modifier = Modifier.width(12.dp))
+                    Spacer(modifier = Modifier.width(8.dp))
                     Text(modifier = Modifier.weight(1f),
                         text = stringResource(R.string.worker_stop))
                 }
             }
 
-            // Fetch Locations Button
-            OutlinedButton(
-                onClick = onFetchLocations,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(50.dp)
+            // Fetch Locations Button with Dropdown
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Default.CloudDownload, contentDescription = null)
-                    Spacer(modifier = Modifier.width(12.dp))
-                    Text(modifier = Modifier.weight(1f), text = stringResource(R.string.get_locations))
+                OutlinedButton(
+                    onClick = { onFetchLocations(selectedLimit) },
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(50.dp)
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Default.CloudDownload, contentDescription = null)
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(modifier = Modifier.weight(1f), text = stringResource(R.string.get_locations))
+                    }
+                }
+
+                Box {
+                    OutlinedButton(
+                        onClick = { dropdownExpanded = true },
+                        modifier = Modifier.height(50.dp)
+                    ) {
+                        Text(
+                            text = selectedLimit?.toString() ?: stringResource(R.string.fetch_limit_all)
+                        )
+                    }
+                    DropdownMenu(
+                        expanded = dropdownExpanded,
+                        onDismissRequest = { dropdownExpanded = false }
+                    ) {
+                        limitOptions.forEach { limit ->
+                            DropdownMenuItem(
+                                text = {
+                                    Text(
+                                        text = limit?.toString() ?: stringResource(R.string.fetch_limit_all)
+                                    )
+                                },
+                                onClick = {
+                                    selectedLimit = limit
+                                    dropdownExpanded = false
+                                }
+                            )
+                        }
+                    }
                 }
             }
             // Send Location now
@@ -656,7 +698,7 @@ fun WorkerControlCard(
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Icon(Icons.Default.LocationOn, contentDescription = null)
-                    Spacer(modifier = Modifier.width(12.dp))
+                    Spacer(modifier = Modifier.width(8.dp))
                     Text(modifier = Modifier.weight(1f), text = stringResource(R.string.send_location_now))
                 }
             }
@@ -670,30 +712,52 @@ fun WorkerControlCard(
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Icon(Icons.AutoMirrored.Filled.Send, contentDescription = null)
-                    Spacer(modifier = Modifier.width(12.dp))
+                    Spacer(modifier = Modifier.width(8.dp))
                     Text(modifier = Modifier.weight(1f), text = stringResource(R.string.send_sms_now))
                 }
             }
-            HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
-            Text(
-                text = stringResource(R.string.delete_old_records_label),
-                style = MaterialTheme.typography.bodyMedium,
-                textAlign = TextAlign.Center,
-                modifier = Modifier
-                    .padding(bottom = 8.dp)
-                    .fillMaxWidth()
-            )
+
+            var deleteDaysExpanded by remember { mutableStateOf(false) }
+            var selectedDays by remember { mutableStateOf(3) }
+            val deleteDaysOptions = listOf(0, 1, 2, 3, 4, 5, 7, 14, 30)
 
             Row(
-                horizontalArrangement = Arrangement.spacedBy(3.dp),
-                modifier = Modifier.fillMaxWidth()
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                for (days in 1..5) {
-                    TextButton(
-                        onClick = { onDeleteOldRecords(days-1) },
-                        modifier = Modifier.weight(1f)
+                OutlinedButton(
+                    onClick = { onDeleteOldRecords(selectedDays) },
+                    modifier = Modifier.height(50.dp).weight(1f)
+                ) {
+                    Icon(Icons.Default.Delete, contentDescription = null)
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(text = stringResource(R.string.cleanup_old_records),
+                        modifier = Modifier.weight(1f))
+                }
+                Box() {
+                    OutlinedButton(
+                        onClick = { deleteDaysExpanded = true },
+                        modifier = Modifier
+                            .height(50.dp)
                     ) {
-                        Text(text = "> ${days-1}")
+                        Text(text = if (selectedDays == 0) "> 0 (All)" else "> $selectedDays days")
+                    }
+                    DropdownMenu(
+                        expanded = deleteDaysExpanded,
+                        onDismissRequest = { deleteDaysExpanded = false }
+                    ) {
+                        deleteDaysOptions.forEach { days ->
+                            DropdownMenuItem(
+                                text = {
+                                    Text(text = if (days == 0) "> 0 (All)" else "> $days days")
+                                },
+                                onClick = {
+                                    selectedDays = days
+                                    deleteDaysExpanded = false
+                                }
+                            )
+                        }
                     }
                 }
             }
@@ -789,7 +853,7 @@ fun MainScreenContent(
     onStartWorker: () -> Unit,
     onStopWorker: () -> Unit,
     onSendLocationNow: () -> Unit,
-    onFetchLocations: () -> Unit,
+    onFetchLocations: (Int?) -> Unit,
     onSendSmsNow: () -> Unit,
     onDeleteOldRecords: (Int) -> Unit
 ) {
