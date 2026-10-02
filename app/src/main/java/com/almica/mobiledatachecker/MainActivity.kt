@@ -9,6 +9,7 @@ import android.telephony.SmsManager
 import android.widget.Toast
 import androidx.core.content.ContextCompat
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -52,6 +53,7 @@ import java.util.Locale
 import androidx.core.net.toUri
 import kotlinx.coroutines.launch
 import timber.log.Timber
+import androidx.compose.ui.platform.LocalResources
 
 class MainActivity : ComponentActivity() {
     @RequiresApi(Build.VERSION_CODES.Q)
@@ -77,10 +79,12 @@ class MainActivity : ComponentActivity() {
 @Composable
 fun MainScreen(viewModel: MainViewModel) {
     val context = LocalContext.current
+    val resources = LocalResources.current
     val isMobileDataLive by viewModel.isMobileDataActive.collectAsStateWithLifecycle(initialValue = false)
     val isWorkerRunning by viewModel.isWorkerRunning.collectAsStateWithLifecycle(initialValue = false)
     val workerLastRunTime by viewModel.workerLastRunTime.collectAsStateWithLifecycle(initialValue = 0L)
     val sendLocationCount by viewModel.sendLocationCount.collectAsStateWithLifecycle(initialValue = 0)
+    val notificationsEnabled by viewModel.notificationsEnabled.collectAsStateWithLifecycle(initialValue = true)
 
     var lastStatusChangeTime by remember { mutableLongStateOf(System.currentTimeMillis()) }
     var showSettingsDialog by remember { mutableStateOf(false) }
@@ -149,7 +153,7 @@ fun MainScreen(viewModel: MainViewModel) {
 
     // Auto-notification when live status becomes active
     LaunchedEffect(isMobileDataLive) {
-        if (isMobileDataLive && hasRequiredPermissions) {
+        if (notificationsEnabled && isMobileDataLive && hasRequiredPermissions) {
             sendMobileDataNotification(context)
         }
     }
@@ -178,7 +182,9 @@ fun MainScreen(viewModel: MainViewModel) {
                 isWorkerRunning = isWorkerRunning,
                 workerInterval = viewModel.getIntervalMinutes(),
                 sendLocationCount = sendLocationCount,
+                notificationsEnabled = notificationsEnabled,
                 lastStatusChangeTime = lastStatusChangeTime,
+                onNotificationsChanged = { viewModel.setNotificationsEnabled(it) },
                 onCheckStatus = {
                     if (isMobileDataLive && hasRequiredPermissions) {
                         sendMobileDataNotification(context)
@@ -203,14 +209,22 @@ fun MainScreen(viewModel: MainViewModel) {
                     showSmsDialog = true
                 },
                 onDeleteOldRecords = {days ->
-                    viewModel.executeDeleteOldRecords(
-                        days,
-                        feedBack = { msg ->
+                    if (days < 1)
+                        viewModel.executeLocationCleanup { msg ->
                             scope.launch {
                                 snackbarHostState.showSnackbar(msg)
                             }
-                        },
-                    )
+                        }
+                    else {
+                        viewModel.executeDeleteOldRecords(
+                            days,
+                            feedBack = { msg ->
+                                scope.launch {
+                                    snackbarHostState.showSnackbar(msg)
+                                }
+                            },
+                        )
+                    }
                 }
             )
         }
@@ -304,14 +318,14 @@ fun MainScreen(viewModel: MainViewModel) {
                             SmsManager.getDefault()
                         }
                         smsManager.sendTextMessage(phone, null, message, null, null)
-                        Toast.makeText(context, context.getString(R.string.sms_sent_to, phone), Toast.LENGTH_SHORT).show()
+                        Toast.makeText(context, resources.getString(R.string.sms_sent_to, phone), Toast.LENGTH_SHORT).show()
                         Timber.i("SMS sent to $phone: $message")
                     } catch (e: Exception) {
-                        Timber.e(e, context.getString(R.string.sms_error))
-                        Toast.makeText(context, "${context.getString(R.string.sms_error)}: ${e.localizedMessage}", Toast.LENGTH_LONG).show()
+                        Timber.e(e, resources.getString(R.string.sms_error))
+                        Toast.makeText(context, "${resources.getString(R.string.sms_error)}: ${e.localizedMessage}", Toast.LENGTH_LONG).show()
                     }
                 } else {
-                    Toast.makeText(context, context.getString(R.string.sms_permission_denied), Toast.LENGTH_LONG).show()
+                    Toast.makeText(context, resources.getString(R.string.sms_permission_denied), Toast.LENGTH_LONG).show()
                 }
             }
         )
@@ -531,9 +545,10 @@ fun LocationListDialog(
             }
         },
         dismissButton = {
-            TextButton(onClick = { onCleanup(searchQuery) }) {
-                Text(stringResource(R.string.cleanup))
-            }
+            if (searchQuery.isNotBlank())
+                TextButton(onClick = { onCleanup(searchQuery) }) {
+                    Text(stringResource(R.string.cleanup))
+                }
         }
     )
 }
@@ -550,7 +565,8 @@ fun WorkerControlCard(
     containerColor: Color = CardDefaults.cardColors().containerColor,
     contentColor: Color = CardDefaults.cardColors().contentColor,
     onSendLocationNow: () -> Unit,
-    onSendSmsNow: () -> Unit
+    onSendSmsNow: () -> Unit,
+    onDeleteOldRecords: (Int) -> Unit
 ) {
     Card(
         modifier = modifier.fillMaxWidth(),
@@ -658,6 +674,30 @@ fun WorkerControlCard(
                     Text(modifier = Modifier.weight(1f), text = stringResource(R.string.send_sms_now))
                 }
             }
+            HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
+            Text(
+                text = stringResource(R.string.delete_old_records_label),
+                style = MaterialTheme.typography.bodyMedium,
+                textAlign = TextAlign.Center,
+                modifier = Modifier
+                    .padding(bottom = 8.dp)
+                    .fillMaxWidth()
+            )
+
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(3.dp),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                for (days in 1..5) {
+                    TextButton(
+                        onClick = { onDeleteOldRecords(days-1) },
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Text(text = "> ${days-1}")
+                    }
+                }
+            }
+
         }
     }
 }
@@ -666,17 +706,19 @@ fun WorkerControlCard(
 fun StatusCard(
     isMobileDataLive: Boolean,
     lastStatusChangeTime: Long,
+    notificationsEnabled: Boolean,
     statusBoxColor: Color,
     contentColor: Color,
     timeFormatter: SimpleDateFormat,
+    onNotificationsChanged: (Boolean) -> Unit,
     onCheckStatus: () -> Unit,
     modifier: Modifier = Modifier,
-    onDeleteOldRecords: (Int) -> Unit
+    onBack: () -> Unit
 ) {
     val formattedTime = remember(lastStatusChangeTime) {
         timeFormatter.format(Date(lastStatusChangeTime))
     }
-
+    BackHandler { onBack() }
     Card(
         modifier = modifier.fillMaxWidth(),
         shape = RoundedCornerShape(12.dp),
@@ -715,29 +757,21 @@ fun StatusCard(
             Spacer(modifier = Modifier.height(12.dp))
             HorizontalDivider()
             Spacer(modifier = Modifier.height(12.dp))
-            // Fetch Locations Button
-            Text(
-                text = stringResource(R.string.delete_old_records_label),
-                style = MaterialTheme.typography.bodyMedium,
-                textAlign = TextAlign.Center,
-                modifier = Modifier
-                    .padding(bottom = 8.dp)
-                    .fillMaxWidth()
-            )
-
             Row(
-                horizontalArrangement = Arrangement.spacedBy(3.dp),
-                modifier = Modifier.fillMaxWidth()
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                for (days in 1..4) {
-                    OutlinedButton(
-                        onClick = { onDeleteOldRecords(days) },
-                        modifier = Modifier.weight(1f)
-                    ) {
-                        Text(text = "> $days")
-                    }
-                }
+                Text(
+                    text = stringResource(R.string.enable_notifications_label),
+                    style = MaterialTheme.typography.bodyLarge
+                )
+                Switch(
+                    checked = notificationsEnabled,
+                    onCheckedChange = onNotificationsChanged
+                )
             }
+
         }
     }
 }
@@ -748,7 +782,9 @@ fun MainScreenContent(
     isWorkerRunning: Boolean,
     workerInterval: Long,
     sendLocationCount: Int,
+    notificationsEnabled: Boolean,
     lastStatusChangeTime: Long,
+    onNotificationsChanged: (Boolean) -> Unit,
     onCheckStatus: () -> Unit,
     onStartWorker: () -> Unit,
     onStopWorker: () -> Unit,
@@ -818,19 +854,26 @@ fun MainScreenContent(
                         onStopWorker = onStopWorker,
                         onFetchLocations = onFetchLocations,
                         onSendLocationNow = onSendLocationNow,
-                        onSendSmsNow = onSendSmsNow
+                        onSendSmsNow = onSendSmsNow,
+                        onDeleteOldRecords = { days ->
+                            onDeleteOldRecords(days)
+                        }
                     )
                 }
                 1 -> {
                     StatusCard(
                         isMobileDataLive = isMobileDataLive,
                         lastStatusChangeTime = lastStatusChangeTime,
+                        notificationsEnabled = notificationsEnabled,
                         statusBoxColor = statusBoxColor,
                         contentColor = contentColor,
                         timeFormatter = timeFormatter,
+                        onNotificationsChanged = onNotificationsChanged,
                         onCheckStatus = onCheckStatus,
-                        onDeleteOldRecords = { days ->
-                            onDeleteOldRecords(days)
+                        onBack = {
+                            scope.launch {
+                                pagerState.animateScrollToPage(0)
+                            }
                         }
                     )
                 }
@@ -852,7 +895,9 @@ fun MainScreenActivePreview() {
                 isWorkerRunning = false,
                 workerInterval = 15L,
                 sendLocationCount = 3,
+                notificationsEnabled = true,
                 lastStatusChangeTime = System.currentTimeMillis(),
+                onNotificationsChanged = {},
                 onCheckStatus = {},
                 onStartWorker = {},
                 onStopWorker = {},
@@ -878,7 +923,9 @@ fun MainScreenInactivePreview() {
                 isWorkerRunning = true,
                 workerInterval = 15L,
                 sendLocationCount = 5,
+                notificationsEnabled = false,
                 lastStatusChangeTime = System.currentTimeMillis(),
+                onNotificationsChanged = {},
                 onCheckStatus = {},
                 onStartWorker = {},
                 onStopWorker = {},

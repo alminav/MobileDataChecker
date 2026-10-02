@@ -26,6 +26,7 @@ object Constants {
     const val KEY_INTERVAL_MINS = "interval_minutes"
     const val KEY_INSTALLATION_ID = "installation_id"
     const val KEY_SEND_LOCATION_COUNT = "send_location_count"
+    const val KEY_NOTIFICATIONS_ENABLED = "notifications_enabled"
 }
 
 fun isMobileDataEnabled(context: Context): Pair<Boolean, Float> {

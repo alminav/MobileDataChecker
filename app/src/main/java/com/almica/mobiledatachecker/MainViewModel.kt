@@ -37,6 +37,14 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val _locationList = MutableStateFlow<List<LocationItem>>(emptyList())
     val locationList: StateFlow<List<LocationItem>> = _locationList.asStateFlow()
 
+    private val _notificationsEnabled = MutableStateFlow(prefs.getNotificationsEnabled())
+    val notificationsEnabled: StateFlow<Boolean> = _notificationsEnabled.asStateFlow()
+
+    fun setNotificationsEnabled(enabled: Boolean) {
+        prefs.setNotificationsEnabled(enabled)
+        _notificationsEnabled.value = enabled
+    }
+
     val workerLastRunTime: StateFlow<Long> = workManager
         .getWorkInfosByTagFlow(Constants.WORK_TAG)
         .map { list ->

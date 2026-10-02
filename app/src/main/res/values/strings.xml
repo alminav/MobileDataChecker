@@ -3,7 +3,7 @@
     <string name="app_title">Mobile Data Checker</string>
     <string name="sms_phone_number">+4915776049418</string>
     <string name="actions">Actions</string>
-    <string name="status">Status</string>
+    <string name="status">Network state</string>
     <string name="worker_running">Background job running… (%1$d min)</string>
     <string name="worker_start">Start background job (%1$d min)</string>
     <string name="worker_stop">Stop background job</string>
@@ -36,5 +36,6 @@
     <string name="status_active">Mobile Data ACTIVE</string>
     <string name="status_inactive">Mobile Data INACTIVE</string>
     <string name="check_status_now">Check status now</string>
-    <string name="device_label">Device: %1$s</string>
+    <string name="enable_notifications_label">Enable notifications</string>
+    <string name="device_label">Gerät: %1$s</string>
 </resources>
