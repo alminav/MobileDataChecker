@@ -43,11 +43,22 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.viewinterop.AndroidView
+import androidx.compose.foundation.Image
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
+import android.graphics.BitmapFactory
+import java.net.HttpURLConnection
+import java.net.URL
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import android.webkit.WebView
+import android.webkit.WebViewClient
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -457,6 +468,9 @@ fun LocationListDialog(
 ) {
     val context = LocalContext.current
     var searchQuery by remember { mutableStateOf("") }
+    var selectedImageLocation by remember { mutableStateOf<LocationItem?>(null) }
+    var loadedImageBitmap by remember { mutableStateOf<ImageBitmap?>(null) }
+    var isImageLoading by remember { mutableStateOf(false) }
 
     val filteredLocations = remember(locations, searchQuery) {
         if (searchQuery.isBlank()) {
@@ -466,6 +480,89 @@ fun LocationListDialog(
                 it.title?.contains(searchQuery, ignoreCase = true) == true
             }
         }
+    }
+
+    LaunchedEffect(selectedImageLocation) {
+        val urlStr = selectedImageLocation?.image_url
+        if (!urlStr.isNullOrBlank()) {
+            isImageLoading = true
+            loadedImageBitmap = null
+            withContext(Dispatchers.IO) {
+                try {
+                    val url = URL(urlStr)
+                    val connection = url.openConnection() as HttpURLConnection
+                    connection.doInput = true
+                    connection.connect()
+                    val inputStream = connection.inputStream
+                    val bitmap = BitmapFactory.decodeStream(inputStream)
+                    if (bitmap != null) {
+                        loadedImageBitmap = bitmap.asImageBitmap()
+                    }
+                } catch (e: Exception) {
+                    Timber.e(e, "Error loading image from $urlStr")
+                } finally {
+                    isImageLoading = false
+                }
+            }
+        } else {
+            loadedImageBitmap = null
+            isImageLoading = false
+        }
+    }
+
+    selectedImageLocation?.let { imageLocation ->
+        AlertDialog(
+            onDismissRequest = { selectedImageLocation = null },
+            title = { Text(text = imageLocation.image_url.toString().replace("http://almica.bplaced.net/", "").replace(".jpg", "")) },
+            text = {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(400.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    if (isImageLoading) {
+                        CircularProgressIndicator()
+                    } else if (loadedImageBitmap != null) {
+                        Image(
+                            bitmap = loadedImageBitmap!!,
+                            contentDescription = "Location Image",
+                            modifier = Modifier.fillMaxSize(),
+                            contentScale = ContentScale.Fit
+                        )
+                    } else {
+                        AndroidView(
+                            factory = { ctx ->
+                                WebView(ctx).apply {
+                                    webViewClient = WebViewClient()
+                                    settings.javaScriptEnabled = true
+                                    loadUrl(selectedImageLocation!!.image_url!!)
+                                }
+                            },
+                            modifier = Modifier.fillMaxSize()
+                        )
+                    }
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { selectedImageLocation = null }) {
+                    Text(stringResource(R.string.close))
+                }
+            },
+            confirmButton = {
+                selectedImageLocation?.let {
+                    TextButton(onClick = {
+                        val gmmIntentUri =
+                            "geo:${it.latitude},${it.longitude}?q=${it.latitude},${it.longitude}".toUri()
+                        val mapIntent = Intent(Intent.ACTION_VIEW, gmmIntentUri)
+                        mapIntent.setPackage("com.google.android.apps.maps")
+                        context.startActivity(mapIntent)
+                    }) {
+                        Text(stringResource(R.string.open_in_map))
+                    }
+                }
+            }
+        )
     }
 
     AlertDialog(
@@ -512,11 +609,16 @@ fun LocationListDialog(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .clickable {
-                                    val gmmIntentUri =
-                                        "geo:${location.latitude},${location.longitude}?q=${location.latitude},${location.longitude}".toUri()
-                                    val mapIntent = Intent(Intent.ACTION_VIEW, gmmIntentUri)
-                                    mapIntent.setPackage("com.google.android.apps.maps")
-                                    context.startActivity(mapIntent)
+                                    val image_location = location
+                                    if (!image_location.image_url.isNullOrBlank()) {
+                                        selectedImageLocation = image_location
+                                    } else {
+                                        val gmmIntentUri =
+                                            "geo:${location.latitude},${location.longitude}?q=${location.latitude},${location.longitude}".toUri()
+                                        val mapIntent = Intent(Intent.ACTION_VIEW, gmmIntentUri)
+                                        mapIntent.setPackage("com.google.android.apps.maps")
+                                        context.startActivity(mapIntent)
+                                    }
                                     searchQuery = location.title.orEmpty()
                                 }
                                 .padding(vertical = 8.dp, horizontal = 4.dp)
@@ -535,6 +637,14 @@ fun LocationListDialog(
                                     text = "Datum: ${location.created_at}, Temp: ${location.temperature?.format(1)}°C",
                                     style = MaterialTheme.typography.bodySmall
                                 )
+                            }
+                            location.image_url?.let {
+                                if (it.isNotBlank()) {
+                                    Text(
+                                        text = "Bild: ${location.image_url}",
+                                        style = MaterialTheme.typography.bodySmall
+                                    )
+                                }
                             }
                         }
                         HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))

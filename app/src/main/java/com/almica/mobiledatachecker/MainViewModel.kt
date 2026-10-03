@@ -122,7 +122,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                         _locationList.value = apiResponse.data
                         Timber.i("Anzahl geladener Orte: ${apiResponse.data.size}")
                         for (location in apiResponse.data) {
-                            Timber.i("Ort: ${location.title} (${location.latitude}, ${location.longitude})")
+                            Timber.i("Ort: ${location.title} (${location.latitude}, ${location.longitude}, ${location.altitude}, ${location.temperature})")
                         }
                     } else {
                         Timber.i("Fehler: ${apiResponse.message}")
@@ -249,7 +249,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                             _locationList.value = apiResponse.data
                             Timber.i("Anzahl geladener Orte: ${apiResponse.data.size}")
                             for (location in apiResponse.data) {
-                                Timber.i("Ort: ${location.title} (${location.latitude}, ${location.longitude})")
+                                Timber.i("Ort: ${location.title} (${location.latitude}, ${location.longitude}, ${location.altitude}, ${location.temperature})")
                             }
                         } else {
                             Timber.i("Fehler: ${apiResponse.message}")

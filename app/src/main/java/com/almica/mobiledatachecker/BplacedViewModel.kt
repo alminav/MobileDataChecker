@@ -44,7 +44,7 @@ class BplacedViewModel : ViewModel() {
 
         viewModelScope.launch {
             try {
-                val response = apiService.saveLocation(title, latitude, longitude, altitude, null)
+                val response = apiService.saveLocation(title, "", latitude, longitude, altitude, null)
                 val body = response.body()
 
                 if (response.isSuccessful && (body != null)) {

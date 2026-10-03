@@ -93,15 +93,17 @@ fun sendMobileDataNotification(context: Context) {
 
 suspend fun sendLocation(
     title: String,
+    imageUrl: String,
     latitude: Double,
     longitude: Double,
     altitude: Double = 0.0,
     temperature: Float? = null
 ): Boolean {
     return try {
-        //val locationTitle = if (temperature != null) "$title ($temperature°C)" else title
+        Timber.i( "sendLocation $title $temperature°C")
         val response = NetworkClient.bplacedApiService.saveLocation(
             title = title, //locationTitle,
+            imageUrl = imageUrl,
             latitude = latitude,
             longitude = longitude,
             altitude = altitude,

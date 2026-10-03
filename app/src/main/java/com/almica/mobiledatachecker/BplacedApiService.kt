@@ -17,6 +17,7 @@ interface BplacedApiService {
     @POST("location.php")
     suspend fun saveLocation(
         @Field("title") title: String,
+        @Field("image_url") imageUrl: String?,
         @Field("latitude") latitude: Double,
         @Field("longitude") longitude: Double,
         @Field("altitude") altitude: Double,

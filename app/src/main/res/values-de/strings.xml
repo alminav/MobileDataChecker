@@ -40,4 +40,5 @@
     <string name="enable_notifications_label">Benachrichtigungen aktivieren</string>
     <string name="fetch_limit_all">Alle</string>
     <string name="device_label">Gerät: %1$s</string>
+    <string name="open_in_map">Google Maps</string>
 </resources>

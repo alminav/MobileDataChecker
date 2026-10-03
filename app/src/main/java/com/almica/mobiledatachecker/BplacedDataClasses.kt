@@ -3,6 +3,7 @@ package com.almica.mobiledatachecker
 data class LocationItem(
     val id: Int,
     val title: String?,
+    val image_url: String?,
     val latitude: Double,
     val longitude: Double,
     val altitude: Double,
