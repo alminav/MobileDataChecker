@@ -49,14 +49,13 @@ class MobileDataCheckWorker(context: Context, workerParams: WorkerParameters) : 
                 //val smsManager = applicationContext.getSystemService(SmsManager::class.java)
                 val prefs = PreferenceManager(applicationContext)
                 val phoneNumber = prefs.getPhoneNumber()
+                val image_url = prefs.getImageUrl()
 
                 val location = if (hasLocationPermission) getCurrentLocation() else null
                 val lat = location?.latitude ?: 0.0
                 val lon = location?.longitude ?: 0.0
                 val alt = location?.altitude ?: 0.0
-
                 val deviceName = getDeviceName()
-                val image_url = ""
 
                 //val message = "Temp: $temp°C | Loc: $lat,$lon"
                 //smsManager.sendTextMessage(phoneNumber, null, message, null, null)
@@ -66,6 +65,7 @@ class MobileDataCheckWorker(context: Context, workerParams: WorkerParameters) : 
                 Timber.i("INACTIVE: SMS sent to $phoneNumber for device $deviceName. Location: $lat, $lon, temp: $temp")
 
                 sendLocation(deviceName, image_url, lat, lon, altitude = alt, temperature = temp)
+                prefs.setImageUrl("")
             } catch (e: Exception) {
                 Timber.e(e, "Failed to send SMS")
                 return Result.retry()

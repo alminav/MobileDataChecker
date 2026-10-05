@@ -1,6 +1,16 @@
 package com.almica.mobiledatachecker
 
 import android.app.Application
+import android.content.ContentValues
+import android.content.Context
+import android.graphics.Bitmap
+import android.location.Location
+import android.net.Uri
+import android.os.Build
+import android.provider.MediaStore
+import android.widget.Toast
+import androidx.camera.core.ImageCapture
+import androidx.compose.ui.res.stringResource
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.work.ExistingPeriodicWorkPolicy
@@ -12,16 +22,23 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import okhttp3.MediaType.Companion.toMediaTypeOrNull
+import okhttp3.MultipartBody
+import okhttp3.RequestBody.Companion.asRequestBody
+import okhttp3.RequestBody.Companion.toRequestBody
+import okhttp3.ResponseBody.Companion.toResponseBody
+import retrofit2.Response
 import java.util.concurrent.TimeUnit
 import timber.log.Timber
+import java.io.File
+import java.io.OutputStream
 
 class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val networkMonitor = NetworkMonitor(application)
     private val workManager = WorkManager.getInstance(application)
     private val prefs = PreferenceManager(application)
-
+    private var imageCapture: ImageCapture? = null
     val isMobileDataActive: StateFlow<Boolean> = networkMonitor.isMobileDataActive
-
     // Track work status more robustly by checking for any active work with the tag
     val isWorkerRunning: StateFlow<Boolean> = workManager
         .getWorkInfosByTagFlow(Constants.WORK_TAG)
@@ -109,31 +126,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             .addTag("test_worker")
             .build()
         workManager.enqueue(testRequest)
-    }
-
-    fun fetchLocationsFromBplaced() {
-        viewModelScope.launch(Dispatchers.IO) {
-            try {
-                val response = NetworkClient.bplacedApiService.fetchLocations()
-                if (response.isSuccessful && response.body() != null) {
-                    val apiResponse = response.body()!!
-                    if (apiResponse.status == "success" && apiResponse.data != null) {
-                        // Updating this StateFlow will trigger the collector in MainActivity
-                        _locationList.value = apiResponse.data
-                        Timber.i("Anzahl geladener Orte: ${apiResponse.data.size}")
-                        for (location in apiResponse.data) {
-                            Timber.i("Ort: ${location.title} (${location.latitude}, ${location.longitude}, ${location.altitude}, ${location.temperature})")
-                        }
-                    } else {
-                        Timber.i("Fehler: ${apiResponse.message}")
-                    }
-                } else {
-                    Timber.e("Server-Fehler: ${response.code()}")
-                }
-            } catch (e: Exception) {
-                Timber.e(e, "Netzwerkfehler: ${e.localizedMessage}")
-            }
-        }
     }
 
     fun executeLocationCleanup(feedBack: (String) -> Unit) {
@@ -265,6 +257,104 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     val msg = "Netzwerkfehler: ${e.localizedMessage}"
                     feedBack(msg)
                     Timber.e( "Netzwerkfehler: ${e.localizedMessage}")
+                }
+            }
+        }
+    }
+
+    fun uploadImageToBplaced(imageFile: File, feedBack: (Response<UploadResponse>) -> Unit) {
+        if (!imageFile.exists()) {
+            Timber.i( "Datei existiert nicht!")
+            return
+        }
+        Timber.i("image: ${imageFile.name}")
+        // 1. Datei in RequestBody umwandeln (MIME-Type ermitteln oder allgemein "image/*" verwenden)
+        val requestFile = imageFile.asRequestBody("image/*".toMediaTypeOrNull())
+
+        // 2. MultipartBody.Part erstellen. Der Name "image" MUSS exakt mit $_FILES['image'] im PHP übereinstimmen
+        val body = MultipartBody.Part.createFormData("image", imageFile.name, requestFile)
+
+        // 3. Im Hintergrund per Coroutine hochladen
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val titleRequestBody = imageFile.name.toRequestBody("text/plain".toMediaTypeOrNull())
+                Timber.i("title: $titleRequestBody")
+                val response = NetworkClient.bplacedApiService.uploadLocationWithPhoto(titleRequestBody, body)
+
+                withContext(Dispatchers.Main) {
+                    if (response.isSuccessful && response.body() != null) {
+                        val serverResponse = response.body()!!
+                        if (serverResponse.status == "success") {
+                            Timber.i( "${serverResponse.message}\nLink: ${serverResponse.url}")
+                        } else {
+                            Timber.i( "Fehler: ${serverResponse.message}")
+                        }
+                    } else {
+                        Timber.i("Server-Fehler Code: ${response.code()}")
+                    }
+                }
+                feedBack(response)
+            } catch (e: Exception) {
+                withContext(Dispatchers.Main) {
+                    if (e is retrofit2.HttpException) {
+                        val errorBody = e.response()?.errorBody()?.string()
+                        Timber.e( "Roher Fehler-Text: $errorBody")
+                    }
+                    Timber.i( "Netzwerkfehler: ${e.localizedMessage}")
+                }
+            }
+        }
+    }
+
+    fun saveBitmapToGallery(context: Context, bitmap: Bitmap, fileName: String,
+                            feedBack: (Boolean) -> Unit) {
+        val contentResolver = context.contentResolver
+
+        // 1. Set up the metadata metadata for the image file
+        val imageDetails = ContentValues().apply {
+            put(MediaStore.Images.Media.DISPLAY_NAME, "$fileName.jpg")
+            put(MediaStore.Images.Media.MIME_TYPE, "image/jpeg")
+
+            // Android 10 (API 29) and above uses Scoped Storage paths
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                put(MediaStore.Images.Media.RELATIVE_PATH, "Pictures/Locations")
+                put(MediaStore.Images.Media.IS_PENDING, 1) // 1 means true / processing
+            }
+        }
+
+        // 2. Select the external storage collection
+        val collectionUri: Uri = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            MediaStore.Images.Media.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY)
+        } else {
+            MediaStore.Images.Media.EXTERNAL_CONTENT_URI
+        }
+
+        viewModelScope.launch(Dispatchers.IO) {
+            // 3. Insert the metadata row to grab a destination URI
+            val imageUri = contentResolver.insert(collectionUri, imageDetails)
+
+            // 4. Open an OutputStream and compress the bitmap into it
+            imageUri?.let { uri ->
+                try {
+                    val isSuccess = contentResolver.openOutputStream(uri)?.use { stream ->
+                        // Compress the bitmap into JPEG format with 95% quality
+                        bitmap.compress(Bitmap.CompressFormat.JPEG, 95, stream)
+                    } ?: false
+                    feedBack(isSuccess)
+                    if (isSuccess) {
+                        // 5. Release the pending status so other apps (like the Gallery) can read it
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                            imageDetails.clear()
+                            imageDetails.put(MediaStore.Images.Media.IS_PENDING, 0)
+                            contentResolver.update(uri, imageDetails, null, null)
+                        }
+                    } else {
+                        contentResolver.delete(uri, null, null)
+                    }
+                } catch (e: Exception) {
+                    Timber.e(e, "Error saving bitmap to gallery")
+                    // Clean up the failed database insertion
+                    contentResolver.delete(uri, null, null)
                 }
             }
         }

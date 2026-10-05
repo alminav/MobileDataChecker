@@ -31,11 +31,13 @@ import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.CloudDownload
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.LocationOn
+import androidx.compose.material.icons.filled.PhotoCamera
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Start
 import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material.icons.filled.TabletAndroid
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -50,6 +52,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.foundation.Image
 import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import android.graphics.BitmapFactory
@@ -66,6 +69,7 @@ import androidx.core.net.toUri
 import kotlinx.coroutines.launch
 import timber.log.Timber
 import androidx.compose.ui.platform.LocalResources
+import androidx.compose.ui.res.stringArrayResource
 
 class MainActivity : ComponentActivity() {
     @RequiresApi(Build.VERSION_CODES.Q)
@@ -102,7 +106,7 @@ fun MainScreen(viewModel: MainViewModel) {
     var showSettingsDialog by remember { mutableStateOf(false) }
 
     val locationList by viewModel.locationList.collectAsStateWithLifecycle()
-    var showLocationDialog by remember { mutableStateOf(false) }
+    var showLocationDialog by remember { mutableStateOf(Pair(false, false)) }
     var showSmsDialog by remember { mutableStateOf(false) }
 
     val snackbarHostState = remember { SnackbarHostState() }
@@ -110,6 +114,20 @@ fun MainScreen(viewModel: MainViewModel) {
 
     var hasRequiredPermissions by remember { mutableStateOf(false) }
     var showBackgroundRationale by remember { mutableStateOf(false) }
+    var showGeoCamera by remember { mutableStateOf(false) }
+
+    val cameraPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { isGranted ->
+        if (isGranted) {
+            showGeoCamera = true
+        } else {
+            val msg = "Kamera-Berechtigung verweigert"
+            scope.launch {
+                snackbarHostState.showSnackbar(msg)
+            }
+        }
+    }
 
     val backgroundPermissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestPermission()
@@ -181,6 +199,17 @@ fun MainScreen(viewModel: MainViewModel) {
             TopAppBar(
                 title = { Text(stringResource(R.string.app_title)) },
                 actions = {
+                    IconButton(onClick = {
+                        viewModel.executeFetchLocationsCount(99999) { msg ->
+                            Timber.i("Fetch locations count: $msg")
+                        }
+                        showLocationDialog = Pair(true, true)
+                    }) {
+                        Icon(
+                            imageVector = Icons.Default.PhotoCamera,
+                            contentDescription = "Foto aufnehmen und hochladen"
+                        )
+                    }
                     IconButton(onClick = { showSettingsDialog = true }) {
                         Icon(imageVector = Icons.Default.Settings, contentDescription = stringResource(R.string.settings))
                     }
@@ -214,10 +243,11 @@ fun MainScreen(viewModel: MainViewModel) {
                     lastStatusChangeTime = System.currentTimeMillis()
                 },
                 onFetchLocations = { limit ->
+                    Timber.i("Fetch locations: $limit")
                     viewModel.executeFetchLocationsCount(limit) { msg ->
                         Timber.i("Fetch locations count: $msg")
                     }
-                    showLocationDialog = true
+                    showLocationDialog = Pair(true, false)
                 },
                 onSendSmsNow = {
                     showSmsDialog = true
@@ -239,11 +269,41 @@ fun MainScreen(viewModel: MainViewModel) {
                             },
                         )
                     }
+                }, onTakePicture = {
+                    val hasCameraPermission = ContextCompat.checkSelfPermission(
+                        context,
+                        Manifest.permission.CAMERA
+                    ) == PackageManager.PERMISSION_GRANTED
+
+                    if (hasCameraPermission) {
+                        showGeoCamera = true
+                    } else {
+                        cameraPermissionLauncher.launch(Manifest.permission.CAMERA)
+                    }
                 }
             )
         }
     }
 
+    if (showGeoCamera) {
+        GeoCameraScreen(
+            onDismiss = { msgPair, link ->
+                Timber.i("GeoCamera dismissed link: $link")
+                Timber.i("GeoCamera dismissed fileName: ${msgPair?.first}")
+                scope.launch {
+                    msgPair?.let { snackbarHostState.showSnackbar(msgPair.first + " " + msgPair.second) }
+                }
+                Timber.i("GeoCamera dismissed photo link: $link")
+                val prefs = PreferenceManager(context)
+                link?.let {
+                    prefs.setImageUrl(it)
+                    viewModel.testWorkerImmediately()
+                    lastStatusChangeTime = System.currentTimeMillis()
+                }
+                showGeoCamera = false
+            }
+        )
+    }
     if (showSettingsDialog) {
         SettingsDialog(
             currentPhone = viewModel.getPhoneNumber(),
@@ -256,12 +316,13 @@ fun MainScreen(viewModel: MainViewModel) {
         )
     }
 
-    if (showLocationDialog) {
+    if (showLocationDialog.first) {
         LocationListDialog(
             deviceName = getDeviceName(),
             locations = locationList,
+            onlyPhotos = showLocationDialog.second,
             onDismiss = {
-                showLocationDialog = false
+                showLocationDialog = (Pair(false, false))
             },
             onCleanup = {filter ->
                 Timber.i("Filter: $filter")
@@ -282,9 +343,10 @@ fun MainScreen(viewModel: MainViewModel) {
                             }
                         }
                     )
-                showLocationDialog = false
+                showLocationDialog = Pair(false, false)
 
-            }
+            },
+            viewModel = viewModel
         )
     }
 
@@ -399,6 +461,7 @@ fun SettingsDialog(
     )
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SendSmsDialog(
     initialPhone: String,
@@ -408,6 +471,12 @@ fun SendSmsDialog(
 ) {
     var phone by remember { mutableStateOf(initialPhone) }
     var message by remember { mutableStateOf(initialMessage) }
+    // 1. String-Array aus den Ressourcen laden
+    val options = stringArrayResource(id = R.array.sms_messages)
+
+    // 2. Zustände für die Auswahl und Sichtbarkeit des Menüs
+    var expanded by remember { mutableStateOf(false) }
+    var selectedOptionText by remember { mutableStateOf(options.getOrNull(0) ?: "") }
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -435,6 +504,44 @@ fun SendSmsDialog(
                     minLines = 3,
                     maxLines = 5
                 )
+                // 3. Container für das Material 3 Dropdown-Menü
+                ExposedDropdownMenuBox(
+                    expanded = expanded,
+                    onExpandedChange = { expanded = it }
+                ) {
+                    // Das Textfeld zeigt das aktuell ausgewählte Element an
+                    TextField(
+                        // Wichtig für Material 3: Verknüpft das Textfeld mit dem Menü-Anker
+                        modifier = Modifier
+                            .menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable)
+                            .fillMaxWidth(),
+                        readOnly = true,
+                        value = selectedOptionText,
+                        onValueChange = {},
+                        label = { Text(stringResource(R.string.sms_template_label)) },
+                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
+                        colors = ExposedDropdownMenuDefaults.textFieldColors(),
+                    )
+
+                    // Das eigentliche Dropdown-Menü mit den Optionen
+                    ExposedDropdownMenu(
+                        expanded = expanded,
+                        onDismissRequest = { expanded = false }
+                    ) {
+                        options.forEach { selectionOption ->
+                            DropdownMenuItem(
+                                text = { Text(selectionOption) },
+                                onClick = {
+                                    message = selectionOption
+                                    selectedOptionText = selectionOption
+                                    expanded = false
+                                    // Hier kannst du eine Aktion ausführen (z. B. ein ViewModel benachrichtigen)
+                                },
+                                contentPadding = ExposedDropdownMenuDefaults.ItemContentPadding,
+                            )
+                        }
+                    }
+                }
             }
         },
         confirmButton = {
@@ -464,21 +571,24 @@ fun LocationListDialog(
     locations: List<LocationItem>,
     onDismiss: () -> Unit,
     onCleanup: (String) -> Unit,
-    deviceName: String
+    deviceName: String,
+    viewModel: MainViewModel = viewModel(),
+    onlyPhotos: Boolean = false
 ) {
     val context = LocalContext.current
+    val resources = LocalResources.current
+    val scope = rememberCoroutineScope()
     var searchQuery by remember { mutableStateOf("") }
+    var onlyPhotos by remember { mutableStateOf(onlyPhotos) }
     var selectedImageLocation by remember { mutableStateOf<LocationItem?>(null) }
     var loadedImageBitmap by remember { mutableStateOf<ImageBitmap?>(null) }
     var isImageLoading by remember { mutableStateOf(false) }
 
-    val filteredLocations = remember(locations, searchQuery) {
-        if (searchQuery.isBlank()) {
-            locations
-        } else {
-            locations.filter {
-                it.title?.contains(searchQuery, ignoreCase = true) == true
-            }
+    val filteredLocations = remember(locations, searchQuery, onlyPhotos) {
+        locations.filter { location ->
+            val matchesPhoto = !onlyPhotos || !location.image_url.isNullOrBlank()
+            val matchesQuery = searchQuery.isBlank() || location.title?.contains(searchQuery, ignoreCase = true) == true
+            matchesPhoto && matchesQuery
         }
     }
 
@@ -513,7 +623,21 @@ fun LocationListDialog(
     selectedImageLocation?.let { imageLocation ->
         AlertDialog(
             onDismissRequest = { selectedImageLocation = null },
-            title = { Text(text = imageLocation.image_url.toString().replace("http://almica.bplaced.net/", "").replace(".jpg", "")) },
+            title = {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    TextButton(onClick = { onDismiss() }) {
+                        Text(stringResource(R.string.uc_close))
+                    }
+                    Text(
+                        text = imageLocation.image_url.toString()
+                            .replace("http://almica.bplaced.net/uploads/", "").replace(".jpg", ""),
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                }
+            },
             text = {
                 Box(
                     modifier = Modifier
@@ -545,8 +669,24 @@ fun LocationListDialog(
                 }
             },
             dismissButton = {
-                TextButton(onClick = { selectedImageLocation = null }) {
-                    Text(stringResource(R.string.close))
+                TextButton(onClick = {
+                    val bitmap = loadedImageBitmap?.asAndroidBitmap()
+                    val fileName = selectedImageLocation?.image_url
+                        ?.substringAfterLast("/")
+                        ?.removeSuffix(".jpg")
+                        ?: "location_${System.currentTimeMillis()}"
+                    Timber.i("Store image: $fileName")
+                    selectedImageLocation = null
+                    if (bitmap != null) {
+                        viewModel.saveBitmapToGallery(context, bitmap, fileName) { success ->
+                            scope.launch {
+                                val msg = if (success) resources.getString(R.string.image_saved) else resources.getString(R.string.image_not_saved)
+                                Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
+                            }
+                        }
+                    }
+                }) {
+                    Text(stringResource(R.string.store_in_gallery))
                 }
             },
             confirmButton = {
@@ -640,8 +780,9 @@ fun LocationListDialog(
                             }
                             location.image_url?.let {
                                 if (it.isNotBlank()) {
+                                    val result = location.image_url.substringAfter("/uploads/", missingDelimiterValue = "")
                                     Text(
-                                        text = "Bild: ${location.image_url}",
+                                        text = "\uD83D\uDCF7 ${result}",
                                         style = MaterialTheme.typography.bodySmall
                                     )
                                 }
@@ -679,7 +820,8 @@ fun WorkerControlCard(
     contentColor: Color = CardDefaults.cardColors().contentColor,
     onSendLocationNow: () -> Unit,
     onSendSmsNow: () -> Unit,
-    onDeleteOldRecords: (Int) -> Unit
+    onDeleteOldRecords: (Int) -> Unit,
+    onTakePicture: () -> Unit
 ) {
     var selectedLimit by remember { mutableStateOf<Int?>(5) }
     var dropdownExpanded by remember { mutableStateOf(false) }
@@ -796,6 +938,20 @@ fun WorkerControlCard(
                             )
                         }
                     }
+                }
+            }
+            // Send Location now
+            OutlinedButton(
+                onClick = onTakePicture,
+                enabled = isWorkerRunning,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(50.dp)
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Default.PhotoCamera, contentDescription = null)
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(modifier = Modifier.weight(1f), text = stringResource(R.string.take_picture))
                 }
             }
             // Send Location now
@@ -965,7 +1121,8 @@ fun MainScreenContent(
     onSendLocationNow: () -> Unit,
     onFetchLocations: (Int?) -> Unit,
     onSendSmsNow: () -> Unit,
-    onDeleteOldRecords: (Int) -> Unit
+    onDeleteOldRecords: (Int) -> Unit,
+    onTakePicture: () -> Unit
 ) {
     val timeFormatter = remember { SimpleDateFormat("HH:mm:ss", Locale.getDefault()) }
     val deviceName = getDeviceName()
@@ -1030,8 +1187,8 @@ fun MainScreenContent(
                         onSendLocationNow = onSendLocationNow,
                         onSendSmsNow = onSendSmsNow,
                         onDeleteOldRecords = { days ->
-                            onDeleteOldRecords(days)
-                        }
+                        onDeleteOldRecords(days) },
+                        onTakePicture = onTakePicture
                     )
                 }
                 1 -> {
@@ -1078,7 +1235,8 @@ fun MainScreenActivePreview() {
                 onSendLocationNow = {},
                 onDeleteOldRecords = {},
                 onFetchLocations = {},
-                onSendSmsNow = {}
+                onSendSmsNow = {},
+                onTakePicture = {}
             )
         }
     }
@@ -1106,7 +1264,8 @@ fun MainScreenInactivePreview() {
                 onSendLocationNow = {},
                 onFetchLocations = {},
                 onDeleteOldRecords = {},
-                onSendSmsNow = {}
+                onSendSmsNow = {},
+                onTakePicture = {}
             )
         }
     }

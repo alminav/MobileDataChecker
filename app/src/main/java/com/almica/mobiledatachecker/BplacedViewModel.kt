@@ -9,6 +9,8 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import com.google.gson.GsonBuilder
+import com.google.gson.Strictness
 import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
 import timber.log.Timber
@@ -23,10 +25,14 @@ sealed interface LocationUiState {
 object NetworkClient {
     private const val BASE_URL = "http://almica.bplaced.net/"
 
+    private val gson = GsonBuilder()
+        .setStrictness(Strictness.LENIENT)
+        .create()
+
     val bplacedApiService: BplacedApiService by lazy {
         Retrofit.Builder()
             .baseUrl(BASE_URL)
-            .addConverterFactory(GsonConverterFactory.create())
+            .addConverterFactory(GsonConverterFactory.create(gson))
             .build()
             .create(BplacedApiService::class.java)
     }
