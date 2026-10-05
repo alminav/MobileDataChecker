@@ -5,6 +5,7 @@ import android.content.SharedPreferences
 import android.os.Build
 import java.util.UUID
 import androidx.core.content.edit
+import timber.log.Timber
 
 class PreferenceManager(context: Context) {
     private val prefs: SharedPreferences = context.getSharedPreferences(
@@ -75,5 +76,6 @@ fun getDeviceName(): String {
     } else {
         "$manufacturer $model"
     }
+    Timber.i("Device name: $name")
     return name
 }

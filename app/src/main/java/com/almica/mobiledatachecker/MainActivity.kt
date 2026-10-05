@@ -578,6 +578,7 @@ fun LocationListDialog(
     val context = LocalContext.current
     val resources = LocalResources.current
     val scope = rememberCoroutineScope()
+    //val picDeviceName = deviceName.replace(" ", "_")
     var searchQuery by remember { mutableStateOf("") }
     var onlyPhotos by remember { mutableStateOf(onlyPhotos) }
     var selectedImageLocation by remember { mutableStateOf<LocationItem?>(null) }
@@ -780,7 +781,10 @@ fun LocationListDialog(
                             }
                             location.image_url?.let {
                                 if (it.isNotBlank()) {
-                                    val result = location.image_url.substringAfter("/uploads/", missingDelimiterValue = "")
+                                    Timber.i("Image URL: $it")
+                                    val result = "…"+location.image_url.takeLast(24).replace(".jpg", "")
+//                                    val result = location.image_url.substringAfter("/uploads/", missingDelimiterValue = "")
+//                                        .replace(".jpg", "").replace(picDeviceName, "…")
                                     Text(
                                         text = "\uD83D\uDCF7 ${result}",
                                         style = MaterialTheme.typography.bodySmall
