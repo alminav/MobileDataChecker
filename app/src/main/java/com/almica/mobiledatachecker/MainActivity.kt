@@ -769,12 +769,12 @@ fun LocationListDialog(
                                 fontWeight = FontWeight.Bold
                             )
                             Text(
-                                text = "Koord: ${location.latitude.format(5)}°, ${location.longitude.format(5)}°, ${location.altitude.format(0)}m",
+                                text = "📍 ${location.latitude.format(5)}°, ${location.longitude.format(5)}° ⛰️ ${location.altitude.format(0)}m",
                                 style = MaterialTheme.typography.bodySmall
                             )
                             if (location.created_at.isNotBlank()) {
                                 Text(
-                                    text = "Datum: ${location.created_at}, Temp: ${location.temperature?.format(1)}°C",
+                                    text = "⏲️ ${location.created_at} 🌡 ${location.temperature?.format(1)}°C",
                                     style = MaterialTheme.typography.bodySmall
                                 )
                             }
