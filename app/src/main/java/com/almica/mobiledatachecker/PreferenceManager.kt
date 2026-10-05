@@ -20,6 +20,13 @@ class PreferenceManager(context: Context) {
         prefs.edit { putString(Constants.KEY_PHONE_NUMBER, number) }
     }
 
+    fun getImageUrl(): String {
+        return prefs.getString(Constants.KEY_IMAGE_URL, "") ?: ""
+    }
+    fun setImageUrl(url: String) {
+        prefs.edit { putString(Constants.KEY_IMAGE_URL, url) }
+    }
+
     fun getIntervalMinutes(): Long {
         return prefs.getLong(Constants.KEY_INTERVAL_MINS, 15L)
     }
