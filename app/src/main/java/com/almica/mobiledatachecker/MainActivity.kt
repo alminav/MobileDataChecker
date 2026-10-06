@@ -161,6 +161,7 @@ fun MainScreen(viewModel: MainViewModel) {
         }
         permissions.add(Manifest.permission.READ_PHONE_STATE)
         permissions.add(Manifest.permission.SEND_SMS)
+        permissions.add(Manifest.permission.RECEIVE_SMS)
 
         // Foreground location permissions
         permissions.add(Manifest.permission.ACCESS_FINE_LOCATION)

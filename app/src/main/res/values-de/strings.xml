@@ -52,5 +52,9 @@
         <item>🚗 Ich fahr jetzt los</item>
         <item>🆘 Hol mich bitte ab</item>
         <item>📷 Hab ein Foto gemacht</item>
+        <item>🏠 Ich fahr nach Hause</item>
+        <item>🏁 Bin angekommen</item>
+        <item>❓ Wo bist Du?</item>
+        <item>😊 Alles in Ordnung</item>
     </string-array>
 </resources>
