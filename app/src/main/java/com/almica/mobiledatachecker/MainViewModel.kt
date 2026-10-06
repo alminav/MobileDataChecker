@@ -4,13 +4,10 @@ import android.app.Application
 import android.content.ContentValues
 import android.content.Context
 import android.graphics.Bitmap
-import android.location.Location
 import android.net.Uri
 import android.os.Build
 import android.provider.MediaStore
-import android.widget.Toast
 import androidx.camera.core.ImageCapture
-import androidx.compose.ui.res.stringResource
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.work.ExistingPeriodicWorkPolicy
@@ -26,12 +23,10 @@ import okhttp3.MediaType.Companion.toMediaTypeOrNull
 import okhttp3.MultipartBody
 import okhttp3.RequestBody.Companion.asRequestBody
 import okhttp3.RequestBody.Companion.toRequestBody
-import okhttp3.ResponseBody.Companion.toResponseBody
 import retrofit2.Response
 import java.util.concurrent.TimeUnit
 import timber.log.Timber
 import java.io.File
-import java.io.OutputStream
 
 class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val networkMonitor = NetworkMonitor(application)
@@ -54,7 +49,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val _locationList = MutableStateFlow<List<LocationItem>>(emptyList())
     val locationList: StateFlow<List<LocationItem>> = _locationList.asStateFlow()
 
-    private val _notificationsEnabled = MutableStateFlow(prefs.getNotificationsEnabled())
+    private val _notificationsEnabled = MutableStateFlow(prefs.getNetworkStateNotificationsEnabled())
     val notificationsEnabled: StateFlow<Boolean> = _notificationsEnabled.asStateFlow()
 
     fun setNotificationsEnabled(enabled: Boolean) {

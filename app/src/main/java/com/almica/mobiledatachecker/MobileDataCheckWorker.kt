@@ -26,8 +26,8 @@ import kotlin.time.Duration.Companion.seconds
 class MobileDataCheckWorker(context: Context, workerParams: WorkerParameters) : CoroutineWorker(context, workerParams) {
     override suspend fun doWork(): Result {
         val (isEnabled, temp) = isMobileDataEnabled(applicationContext)
-        val isNotificationEnabled = PreferenceManager(applicationContext).getNotificationsEnabled()
-        if (isEnabled && isNotificationEnabled) {
+        val isNetworkStateNotificationEnabled = PreferenceManager(applicationContext).getNetworkStateNotificationsEnabled()
+        if (isEnabled && isNetworkStateNotificationEnabled) {
             sendMobileDataNotification(applicationContext)
         }
         Timber.i("Mobile Data Check Worker executed, temperature: $temp°C")

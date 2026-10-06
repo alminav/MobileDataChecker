@@ -58,12 +58,12 @@ class PreferenceManager(context: Context) {
         prefs.edit { putInt(Constants.KEY_SEND_LOCATION_COUNT, 0) }
     }
 
-    fun getNotificationsEnabled(): Boolean {
-        return prefs.getBoolean(Constants.KEY_NOTIFICATIONS_ENABLED, true)
+    fun getNetworkStateNotificationsEnabled(): Boolean {
+        return prefs.getBoolean(Constants.KEY_NETSTATE_NOTIFICATIONS_ENABLED, true)
     }
 
     fun setNotificationsEnabled(enabled: Boolean) {
-        prefs.edit { putBoolean(Constants.KEY_NOTIFICATIONS_ENABLED, enabled) }
+        prefs.edit { putBoolean(Constants.KEY_NETSTATE_NOTIFICATIONS_ENABLED, enabled) }
     }
 }
 

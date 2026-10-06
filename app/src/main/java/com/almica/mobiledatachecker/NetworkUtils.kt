@@ -26,7 +26,7 @@ object Constants {
     const val KEY_INTERVAL_MINS = "interval_minutes"
     const val KEY_INSTALLATION_ID = "installation_id"
     const val KEY_SEND_LOCATION_COUNT = "send_location_count"
-    const val KEY_NOTIFICATIONS_ENABLED = "notifications_enabled"
+    const val KEY_NETSTATE_NOTIFICATIONS_ENABLED = "notifications_enabled"
     const val KEY_IMAGE_URL = "image_url"
 }
 
