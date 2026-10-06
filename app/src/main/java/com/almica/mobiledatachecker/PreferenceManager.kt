@@ -65,6 +65,14 @@ class PreferenceManager(context: Context) {
     fun setNotificationsEnabled(enabled: Boolean) {
         prefs.edit { putBoolean(Constants.KEY_NETSTATE_NOTIFICATIONS_ENABLED, enabled) }
     }
+
+    fun isSmsFilterEnabled(): Boolean {
+        return prefs.getBoolean(Constants.KEY_SMS_FILTER_ENABLED, true)
+    }
+
+    fun setSmsFilterEnabled(enabled: Boolean) {
+        prefs.edit { putBoolean(Constants.KEY_SMS_FILTER_ENABLED, enabled) }
+    }
 }
 
 fun getDeviceName(): String {

@@ -27,8 +27,13 @@ class SmsReceiver : BroadcastReceiver() {
                 val messages = Telephony.Sms.Intents.getMessagesFromIntent(intent)
                 val sender = messages?.firstOrNull()?.displayOriginatingAddress.orEmpty()
                 val body = messages?.joinToString(separator = "") { it.displayMessageBody.orEmpty() }.orEmpty()
+                Timber.i("SMS von $sender: $body")
 
-                showSmsNotification(context, sender, body)
+                if (shouldShowNotification(context, sender, body)) {
+                    showSmsNotification(context, sender, body)
+                } else {
+                    Timber.i("SMS von $sender gefiltert - keine Benachrichtigung gesendet.")
+                }
             }
             ACTION_REPLY_SMS -> {
                 Timber.i("SMS Antwort-Aktion empfangen")
@@ -42,6 +47,51 @@ class SmsReceiver : BroadcastReceiver() {
                 }
             }
         }
+    }
+
+    private fun shouldShowNotification(context: Context, sender: String, body: String): Boolean {
+        if (body.isBlank()) {
+            Timber.d("SMS-Filter: Nachrichtentext ist leer.")
+            return false
+        }
+
+        val preferenceManager = PreferenceManager(context)
+
+        // Wenn SMS-Filter deaktiviert ist, alle nicht-leeren Nachrichten erlauben
+        if (!preferenceManager.isSmsFilterEnabled()) {
+            Timber.d("SMS-Filter ist deaktiviert - Benachrichtigung wird gesendet.")
+            return true
+        }
+
+        val configuredNumber = preferenceManager.getPhoneNumber().trim()
+
+        // Telefonnummern für Vergleich normalisieren
+        val normalizedSender = sender.replace(Regex("[^0-9+]"), "")
+        val normalizedConfigured = configuredNumber.replace(Regex("[^0-9+]"), "")
+
+        // Regel 1: Absender stimmt mit der in den Einstellungen konfigurierten Telefonnummer überein
+        val isConfiguredSender = normalizedConfigured.isNotEmpty() &&
+                (normalizedSender.endsWith(normalizedConfigured.takeLast(8)) ||
+                 normalizedConfigured.endsWith(normalizedSender.takeLast(8)))
+
+        if (isConfiguredSender) {
+            Timber.i("SMS-Filter Akzeptiert: Absender stimmt mit konfigurierter Nummer ($sender) überein.")
+            return true
+        }
+
+        // Regel 2: Inhalt enthält relevante Schlüsselwörter für MobileDataChecker
+        val relevantKeywords = listOf("data", "daten", "status", "alert", "mobile", "warnung", "check")
+        val containsKeyword = relevantKeywords.any { keyword ->
+            body.contains(keyword, ignoreCase = true)
+        }
+
+        if (containsKeyword) {
+            Timber.i("SMS-Filter Akzeptiert: Inhalt enthält relevantes Schlüsselwort.")
+            return true
+        }
+
+        Timber.i("SMS-Filter Abgelehnt: Nachricht von $sender erfüllt keine Filterkriterien.")
+        return false
     }
 
     private fun showSmsNotification(context: Context, sender: String, body: String) {
