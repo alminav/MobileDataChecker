@@ -62,6 +62,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import android.webkit.WebView
 import android.webkit.WebViewClient
+import androidx.compose.material.icons.filled.Phone
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -213,6 +214,17 @@ fun MainScreen(viewModel: MainViewModel) {
                     }
                     IconButton(onClick = { showSettingsDialog = true }) {
                         Icon(imageVector = Icons.Default.Settings, contentDescription = stringResource(R.string.settings))
+                    }
+                    IconButton(onClick = {
+                        // Bypasses permission requirements by letting the user hit "Send" themselves
+                        val prefs = PreferenceManager(context)
+                        val phoneNumber = prefs.getPhoneNumber()
+                        val dialIntent = Intent(Intent.ACTION_DIAL).apply {
+                            data = "tel:${phoneNumber}".toUri()
+                        }
+                        context.startActivity(dialIntent)
+                    }) {
+                        Icon(imageVector = Icons.Default.Phone, contentDescription = null)
                     }
                 }
             )
