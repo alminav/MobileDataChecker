@@ -106,6 +106,7 @@
 		<button class="custom-button btn-link" id="geoBtn">Standort senden (Test)</button>
 		<div id="status">Bereit.</div>
 		<p>
+			<button class="custom-button btn-alert" onclick="sendeEmail()">E-Mail senden</button><br></br>
 		    <button class="custom-button btn-alert" onclick="zeigeNachricht()">Pop-up zeigen</button><br></br>
 			<button class="custom-button btn-color" onclick="waehleZufaelligeFarbe()">Hintergrund ändern</button>
 		</p>
@@ -124,6 +125,9 @@
         }
 		function oeffneImages() {
             window.open("http://almica.bplaced.net/showImages.php", "_blank");
+        }
+		function sendeEmail() {
+            window.open("http://almica.bplaced.net/send_email.php?datei=whatsapp_micha.png", "_blank");
         }
         // Aktion 2: Ein Pop-up-Fenster anzeigen
         function zeigeNachricht() {
@@ -183,7 +187,7 @@
 				container.style.display = 'none';  // Unsichtbar machen
 				btn.textContent = '📂 Test Funktionen anzeigen';  // Button-Text zurücksetzen
 			}
-		}
+		}		
     </script>
 
 </body>

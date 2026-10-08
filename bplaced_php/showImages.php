@@ -160,12 +160,16 @@ echo $msg;
             $filename = basename($image);
 
             $deleteUrl = "?sort=" . $sortOrder . "&delete=" . urlencode($image);
-
+			// Die URL für das Sende-Skript mit dem Parameter "datei" aufbauen
+			$sendEmailUrl = "send_email.php?datei=" . urlencode($image);
             echo '<div class="image-card">';
             echo '  <img src="' . htmlspecialchars($image) . '" alt="Galeriebild">';
             echo '  <div class="image-info">';
             echo '      <span class="date-text">' . $formattedDate . ' Uhr</span>';
             echo '      <div class="action-buttons">';
+			// 2. NEUER E-Mail-Button (leitet an send_email.php weiter)
+			echo '          <a href="' . htmlspecialchars($sendEmailUrl) . '" class="action-btn email-btn" title="Als E-Mail-Anhang senden">✉️</a>';
+
             // Download-Button
             echo '          <a href="' . htmlspecialchars($image) . '" download="' . htmlspecialchars($filename) . '" class="action-btn download-btn" title="Bild herunterladen">💾</a>';
             // Neuer Lösch-Button (ruft weiterhin die Sicherheitsabfrage auf)
