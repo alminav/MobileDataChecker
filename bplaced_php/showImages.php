@@ -2,7 +2,7 @@
 <html lang="de">
 <head>
     <meta charset="UTF-8">
-    <title>Bildergalerie mit Löschfunktion</title>
+    <title>Bildergalerie mit Download und Lösch-Button</title>
     <style>
         body {
             font-family: Arial, sans-serif;
@@ -51,43 +51,47 @@
             flex-direction: column;
             position: relative;
         }
-        /* Der Mauszeiger wird zur Hand, um Klickbarkeit zu signalisieren */
         .image-card img {
             width: 100%;
             height: 320px;
             object-fit: cover;
-            cursor: pointer;
-            transition: opacity 0.2s;
-        }
-        /* Visuelles Feedback beim Drüberfahren (Hover) */
-        .image-card img:hover {
-            opacity: 0.85;
-        }
-        /* Ein kleiner Lösch-Hinweis, der beim Drüberfahren erscheint */
-        .image-card::after {
-            content: "🗑️ Klicken zum Löschen";
-            position: absolute;
-            top: 10px;
-            right: 10px;
-            background: rgba(220, 53, 69, 0.9);
-            color: white;
-            padding: 4px 8px;
-            font-size: 11px;
-            border-radius: 4px;
-            pointer-events: none;
-            opacity: 0;
-            transition: opacity 0.2s;
-        }
-        .image-card:hover::after {
-            opacity: 1;
         }
         .image-info {
             padding: 10px;
             font-size: 13px;
             color: #555555;
-            text-align: center;
             background-color: #fafafa;
             border-top: 1px solid #eeeeee;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .date-text {
+            flex-grow: 1;
+            text-align: left;
+            font-size: 12px;
+        }
+        .action-buttons {
+            display: flex;
+            gap: 8px;
+        }
+        .action-btn {
+            text-decoration: none;
+            font-size: 16px;
+            padding: 4px 6px;
+            border-radius: 4px;
+            transition: background-color 0.2s;
+            border: none;
+            background: transparent;
+            cursor: pointer;
+        }
+        /* Styling für den Download-Button */
+        .download-btn:hover {
+            background-color: #e2e6ea;
+        }
+        /* Styling für den Lösch-Button */
+        .delete-btn:hover {
+            background-color: #f8d7da;
         }
         .alert {
             padding: 12px;
@@ -106,28 +110,25 @@
 $dir = "uploads/"; 
 $msg = "";
 
-// 1. LÖSCH-LOGIK (Wird ausgeführt, wenn ?delete=... in der URL übergeben wird)
+// 1. LÖSCH-LOGIK
 if (isset($_GET['delete'])) {
     $fileToDelete = $_GET['delete'];
-
-    // Sicherheitsprüfung: Verhindert, dass Dateien außerhalb des uploads-Ordners gelöscht werden
     if (strpos($fileToDelete, $dir) === 0 && file_exists($fileToDelete)) {
         if (unlink($fileToDelete)) {
             $msg = "<div class='alert alert-success'>Das Bild wurde erfolgreich gelöscht!</div>";
         } else {
-            $msg = "<div class='alert alert-danger'>Fehler: Das Bild konnte nicht gelöscht werden. Berechtigungen prüfen!</div>";
+            $msg = "<div class='alert alert-danger'>Fehler: Das Bild konnte nicht gelöscht werden.</div>";
         }
     }
 }
 
-// 2. Sortierung aus der URL auslesen
+// 2. Sortierung auslesen
 $sortOrder = isset($_GET['sort']) && $_GET['sort'] === 'oldest' ? 'oldest' : 'newest';
 
 // 3. Bilder einlesen
 $pattern = $dir . "*.{jpg,jpeg,png,gif,webp,JPG,JPEG,PNG,GIF,WEBP}";
 $images = glob($pattern, GLOB_BRACE);
 
-// Erfolgs- oder Fehlermeldung ausgeben
 echo $msg;
 ?>
 
@@ -155,22 +156,28 @@ echo $msg;
         // Bilder ausgeben
         foreach ($images as $image) {
             $fileTime = filemtime($image);
-            $formattedDate = date("d.m.Y \u\m H:i \U\h\r", $fileTime);
+            $formattedDate = date("d.m.Y H:i", $fileTime);
+            $filename = basename($image);
 
-            // Aktuelle Sortierung beibehalten, wenn die Seite nach dem Löschen neu lädt
             $deleteUrl = "?sort=" . $sortOrder . "&delete=" . urlencode($image);
 
             echo '<div class="image-card">';
-            // Per JavaScript-onclick wird vor dem Weiterleiten nachgefragt
-            echo '  <img src="' . htmlspecialchars($image) . '" alt="Galeriebild" onclick="confirmDelete(\'' . jsone(htmlspecialchars($deleteUrl)) . '\')">';
-            echo '  <div class="image-info">' . $formattedDate . '</div>';
+            echo '  <img src="' . htmlspecialchars($image) . '" alt="Galeriebild">';
+            echo '  <div class="image-info">';
+            echo '      <span class="date-text">' . $formattedDate . ' Uhr</span>';
+            echo '      <div class="action-buttons">';
+            // Download-Button
+            echo '          <a href="' . htmlspecialchars($image) . '" download="' . htmlspecialchars($filename) . '" class="action-btn download-btn" title="Bild herunterladen">💾</a>';
+            // Neuer Lösch-Button (ruft weiterhin die Sicherheitsabfrage auf)
+            echo '          <button class="action-btn delete-btn" title="Bild löschen" onclick="confirmDelete(\'' . jsone(htmlspecialchars($deleteUrl)) . '\')">🗑️</button>';
+            echo '      </div>';
+            echo '  </div>';
             echo '</div>';
         }
     } else {
         echo '<p style="text-align:center; grid-column: 1/-1;">Keine Bilder im Verzeichnis gefunden.</p>';
     }
 
-    // Hilfsfunktion zur korrekten Maskierung im JavaScript-Aufruf
     function jsone($str) {
         return str_replace("'", "\'", $str);
     }
@@ -178,7 +185,6 @@ echo $msg;
 </div>
 
 <script>
-// Sicherheitsabfrage im Browser
 function confirmDelete(deleteUrl) {
     if (confirm("Möchtest du dieses Bild wirklich unwiderruflich löschen?")) {
         window.location.href = deleteUrl;

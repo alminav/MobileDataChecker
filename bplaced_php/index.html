@@ -90,6 +90,10 @@
 		<button class="custom-button btn-link" onclick="oeffneWiki()">Wiki</button>
 		<button class="custom-button btn-link" onclick="oeffneReleases()">Releases</button>
 		<button class="custom-button btn-link" onclick="oeffneImages()">Images</button>
+		<!-- Der Button, der das Umschalten auslöst -->
+		<button id="toggle-btn" onclick="toggleContainer()">📂 Test Funktionen anzeigen</button>
+    </div>
+	<div id="test-container" class="button-container" style="display: none;">
 		<h4>Standort an bplaced-Datenbank senden.<br>Klicke auf den Button, um deine aktuelle GPS-Position zu ermitteln und zu speichern.</br></h4>
 		<button class="custom-button btn-link" id="geoBtn">Standort senden (Test)</button>
 		<div id="status">Bereit.</div>
@@ -97,7 +101,7 @@
 		    <button class="custom-button btn-alert" onclick="zeigeNachricht()">Pop-up zeigen</button><br></br>
 			<button class="custom-button btn-color" onclick="waehleZufaelligeFarbe()">Hintergrund ändern</button>
 		</p>
-    </div>
+	</div>
 	
     <script>
         // Aktion 1: Link in neuem Tab öffnen
@@ -159,7 +163,19 @@
         .then(response => console.log(response.json()))
         .catch(error => console.error('Fehler:', error));
         });
-
+		function toggleContainer() {
+			const container = document.getElementById('test-container');
+			const btn = document.getElementById('toggle-btn');
+			
+			// Prüfen, ob der Container gerade unsichtbar ist
+			if (container.style.display === 'none') {
+				container.style.display = 'block'; // Sichtbar machen
+				btn.textContent = '❌ Test Funktionen schließen'; // Button-Text anpassen
+			} else {
+				container.style.display = 'none';  // Unsichtbar machen
+				btn.textContent = '📂 Test Funktionen anzeigen';  // Button-Text zurücksetzen
+			}
+		}
     </script>
 
 </body>
