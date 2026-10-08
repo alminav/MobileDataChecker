@@ -48,6 +48,7 @@
     <string name="take_picture">Take picture</string>
     <string name="take_picture_and_upload">Take picture and upload</string>
     <string name="sms_template_label">Select template…</string>
+    <string name="camera_loading">Loading camera …</string>
     <string-array name="sms_messages">
         <item>👌 OK</item>
         <item>🚗 I\'m leaving now</item>

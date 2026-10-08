@@ -47,6 +47,7 @@
     <string name="take_picture">Foto aufnehmen</string>
     <string name="take_picture_and_upload">Foto aufnehmen und hochladen</string>
     <string name="sms_template_label">Vorlage wählen…</string>
+    <string name="camera_loading">Lädt Kamera …</string>
     <string-array name="sms_messages">
         <item>👌 OK</item>
         <item>🚗 Ich fahr jetzt los</item>
