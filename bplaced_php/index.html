@@ -57,7 +57,14 @@
             align-items: center;
             text-align: center;
         }
-
+		.container-img {
+			display: block;     /* Ermöglicht die Nutzung von automatischen Rändern */
+			width: 30%;         /* Nutzt die halbe Breite des Containers */
+			height: auto !important; /* Verhindert jegliche Verzerrung */
+			margin: 10px auto 0 auto; /* Zentriert das Bild horizontal (oben 10px, links/rechts auto) */
+			border-radius: 6px;
+			box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+		}
         /* Klick-Effekt */
         .custom-button:active {
             transform: scale(0.98);
@@ -76,15 +83,16 @@
         /* Anpassung für sehr kleine Bildschirme */
         @media (max-width: 440px) {
             .site-title {
-                font-size: 26px;
-                margin-bottom: 15px;
+                font-size: 16px;
+                margin-bottom: 2px;
             }
         }
     </style>
 </head>
 <body>
-    <h1 class="site-title">MobileDataChecker</h1>
+    <h4 class="site-title">MobileDataChecker</h4>
     <div class="button-container">
+		<img src="whatsapp_micha.png" alt="micha" class="container-img"
         <!-- onclick-Attribute rufen die JavaScript-Funktionen auf -->
         <button class="custom-button btn-link" onclick="oeffneLink()">Show Locations</button>
 		<button class="custom-button btn-link" onclick="oeffneWiki()">Wiki</button>
