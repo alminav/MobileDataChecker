@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Standort Tracker</title>
+    <style>
+        body {
+            font-family: system-ui, -apple-system, sans-serif;
+            text-align: center;
+            padding: 40px 20px;
+            background: #f0f2f5;
+        }
+        .card {
+            background: white;
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+            max-width: 400px;
+            margin: 0 auto;
+        }
+        button {
+            background: #0078d4; /* Edge Blau */
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            font-size: 16px;
+            font-weight: 600;
+            border-radius: 6px;
+            cursor: pointer;
+        }
+        button:hover { background: #005a9e; }
+        #output { margin-top: 20px; font-size: 16px; line-height: 1.6; }
+    </style>
+</head>
+<body>
+<div class="card">
+    <h2>Wo bin ich?</h2>
+    <button id="getPos">Standort abfragen</button>
+    <div id="output">Klicke auf den Button, um deine Koordinaten zu sehen.</div>
+</div>
+
+<script>
+document.getElementById('getPos').addEventListener('click', () => {
+    const out = document.getElementById('output');
+    out.textContent = "Suche Satelliten...";
+
+    navigator.geolocation.getCurrentPosition(
+        (pos) => {
+			console.log('pos', pos)
+			const bplacedUrl = "http://almica.bplaced.net/location.php?latitude=52.3&longitude=10.3&title=title"
+			//experiment not working
+			//postUrl(bplacedUrl)
+            out.innerHTML = `
+                <strong>Breitengrad:</strong> ${pos.coords.latitude.toFixed(6)}<br>
+                <strong>Längengrad:</strong> ${pos.coords.longitude.toFixed(6)}<br>
+                <small>Genauigkeit: ${Math.round(pos.coords.accuracy)} Meter</small><br><br>
+                <a href="https://www.google.com/maps?q=${pos.coords.latitude},${pos.coords.longitude}" style="color: #0078d4;">In Google Maps öffnen ↗</a><br>
+            `;
+        },
+        (err) => { out.textContent = "Fehler: " + err.message; },
+        { enableHighAccuracy: true }
+    );
+});
+function postUrl(url) {
+	console.log('url', url)
+        fetch(url)
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error('Netzwerk-Antwort war nicht ok: ' + response.statusText);
+                }
+                return response.text();
+            })
+            .then(data => {
+                console.log('data', data)
+            })
+            .catch(error => {
+                console.log('response',  error.message)
+                console.log('Hinweis:', 'Wenn diese HTML-Seite über HTTPS geladen wird, blockieren Browser HTTP-Anfragen (Mixed Content). Die API sollte idealerweise ebenfalls über HTTPS erreichbar sein.')
+            });
+    }
+</script>
+
+</body>
+</html>
