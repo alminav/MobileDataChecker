@@ -101,10 +101,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         workManager.cancelAllWorkByTag(Constants.WORK_TAG)
     }
 
-    fun updatePreferences(phone: String, interval: Long) {
+    fun updatePreferences(phone: String, interval: Long, email: String) {
         val oldInterval = prefs.getIntervalMinutes()
         prefs.setPhoneNumber(phone)
         prefs.setIntervalMinutes(interval)
+        prefs.setEmailAddress(email)
 
         // If worker is running and interval changed, restart it
         if (isWorkerRunning.value && oldInterval != interval) {
@@ -114,6 +115,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun getPhoneNumber() = prefs.getPhoneNumber()
     fun getIntervalMinutes() = prefs.getIntervalMinutes()
+    fun getEmailAddress() = prefs.getEmailAddress()
 
     fun testWorkerImmediately() {
         val testRequest = OneTimeWorkRequestBuilder<MobileDataCheckWorker>()

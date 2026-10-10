@@ -19,6 +19,7 @@
     <string name="sms_error">Fehler beim Senden der SMS</string>
     <string name="sms_permission_denied">SMS-Berechtigung verweigert</string>
     <string name="sms_phone_label">Telefonnummer</string>
+    <string name="email_label">Empfänger-E-Mail-Adresse</string>
     <string name="sms_interval_label">Intervall (Minuten)</string>
     <string name="save">Speichern</string>
     <string name="send_sms_title">SMS senden</string>

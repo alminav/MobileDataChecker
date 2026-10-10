@@ -29,9 +29,18 @@ object NetworkClient {
         .setStrictness(Strictness.LENIENT)
         .create()
 
+    private val okHttpClient = okhttp3.OkHttpClient.Builder()
+        .addInterceptor { chain ->
+            val request = chain.request()
+            Timber.i("HTTP Request: ${request.method} ${request.url}")
+            chain.proceed(request)
+        }
+        .build()
+
     val bplacedApiService: BplacedApiService by lazy {
         Retrofit.Builder()
             .baseUrl(BASE_URL)
+            .client(okHttpClient)
             .addConverterFactory(GsonConverterFactory.create(gson))
             .build()
             .create(BplacedApiService::class.java)

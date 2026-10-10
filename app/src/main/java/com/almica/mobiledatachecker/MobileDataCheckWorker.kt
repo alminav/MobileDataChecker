@@ -40,38 +40,40 @@ class MobileDataCheckWorker(context: Context, workerParams: WorkerParameters) : 
         }
         */
 
-        // 2. Check for permissions (SMS and Location)
-        val hasSmsPermission = applicationContext.checkSelfPermission(Manifest.permission.SEND_SMS) == PackageManager.PERMISSION_GRANTED
+        // 2. Check for permissions (Location)
         val hasLocationPermission = applicationContext.checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED
 
-        if (hasSmsPermission) {
+        if (hasLocationPermission) {
             try {
-                //val smsManager = applicationContext.getSystemService(SmsManager::class.java)
                 val prefs = PreferenceManager(applicationContext)
-                val phoneNumber = prefs.getPhoneNumber()
-                val image_url = prefs.getImageUrl()
+                val imageUrl = prefs.getImageUrl()
 
-                val location = if (hasLocationPermission) getCurrentLocation() else null
+                val location = getCurrentLocation()
                 val lat = location?.latitude ?: 0.0
                 val lon = location?.longitude ?: 0.0
                 val alt = location?.altitude ?: 0.0
                 val deviceName = getDeviceName()
 
-                //val message = "Temp: $temp°C | Loc: $lat,$lon"
-                //smsManager.sendTextMessage(phoneNumber, null, message, null, null)
-
-                val prefsManager = PreferenceManager(applicationContext)
-                val count = prefsManager.incrementSendLocationCount()
-                Timber.i("INACTIVE: SMS sent to $phoneNumber for device $deviceName. Location: $lat, $lon, temp: $temp")
-
-                sendLocation(deviceName, image_url, lat, lon, altitude = alt, temperature = temp)
-                prefs.setImageUrl("")
+                val isLocationSent = sendLocation(deviceName, imageUrl, lat, lon, altitude = alt, temperature = temp)
+                if (isLocationSent) {
+                    Timber.i("sendLocation completed successfully")
+                    val recipientEmail = prefs.getEmailAddress()
+                    if (imageUrl.isNotEmpty()) {
+                        Timber.i("Sending email with image: $imageUrl")
+                        val fileName = imageUrl.replace("http://almica.bplaced.net/uploads/", "")
+                        Timber.i("Sending email with image: $fileName and location: $lat, $lon to $recipientEmail")
+                        sendEmail(fileName, recipientEmail, lat, lon)
+                    }
+                    prefs.setImageUrl("")
+                } else {
+                    Timber.w("sendLocation failed, skipping email send")
+                }
             } catch (e: Exception) {
-                Timber.e(e, "Failed to send SMS")
+                Timber.e(e, "Failed to send Location")
                 return Result.retry()
             }
         } else {
-            Timber.w("SEND_SMS permission not granted. Cannot send text message.")
+            Timber.w("SEND_SMS or LOCATION permission not granted. Cannot send text message.")
             return Result.failure()
         }
 

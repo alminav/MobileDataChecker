@@ -19,6 +19,7 @@
     <string name="sms_error">Error sending SMS</string>
     <string name="sms_permission_denied">SMS permission denied</string>
     <string name="sms_phone_label">Phone number</string>
+    <string name="email_label">Recipient email address</string>
     <string name="sms_interval_label">Interval (minutes)</string>
     <string name="save">Save</string>
     <string name="send_sms_title">Send SMS</string>

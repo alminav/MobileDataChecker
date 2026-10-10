@@ -29,6 +29,7 @@ object Constants {
     const val KEY_NETSTATE_NOTIFICATIONS_ENABLED = "notifications_enabled"
     const val KEY_SMS_FILTER_ENABLED = "sms_filter_enabled"
     const val KEY_IMAGE_URL = "image_url"
+    const val KEY_EMAIL_ADDRESS = "email_address"
 }
 
 fun isMobileDataEnabled(context: Context): Pair<Boolean, Float> {
@@ -121,6 +122,76 @@ suspend fun sendLocation(
         }
     } catch (e: Exception) {
         Timber.e(e, "Error sending location")
+        false
+    }
+}
+
+suspend fun sendEmail(
+    datei: String,
+    mailto: String,
+    latitude: Double,
+    longitude: Double
+): Boolean {
+    return try {
+        Timber.i("sendEmail datei=$datei mailto=$mailto lat=$latitude lon=$longitude")
+        val response = NetworkClient.bplacedApiService.sendEmail(
+            dateiQuery = datei,
+            mailtoQuery = mailto,
+            latitudeQuery = latitude,
+            longitudeQuery = longitude,
+            fileQuery = datei,
+            filenameQuery = datei,
+            emailQuery = mailto,
+            toQuery = mailto,
+            latQuery = latitude,
+            lonQuery = longitude,
+            dateiField = datei,
+            mailtoField = mailto,
+            latitudeField = latitude,
+            longitudeField = longitude,
+            fileField = datei,
+            filenameField = datei,
+            emailField = mailto,
+            toField = mailto,
+            latField = latitude,
+            lonField = longitude
+        )
+        if (response.isSuccessful) {
+            val responseText = response.body()?.string()?.trim() ?: ""
+            Timber.i("sendEmail response: $responseText")
+
+            val isSuccess = try {
+                val json = com.google.gson.JsonParser.parseString(responseText)
+                if (json.isJsonObject) {
+                    val status = json.asJsonObject["status"]?.asString
+                    status.equals("success", ignoreCase = true)
+                } else if (json.isJsonPrimitive) {
+                    val primitiveStr = json.asString
+                    primitiveStr.contains("success", ignoreCase = true) ||
+                            primitiveStr.contains("sent", ignoreCase = true) ||
+                            primitiveStr.contains("gesendet", ignoreCase = true) ||
+                            primitiveStr.contains("ok", ignoreCase = true)
+                } else {
+                    false
+                }
+            } catch (_: Exception) {
+                val lower = responseText.lowercase()
+                !lower.contains("error") && !lower.contains("failed") && !lower.contains("fehler") && responseText.isNotEmpty()
+            }
+
+            if (isSuccess) {
+                Timber.i("mail sent successfully: $responseText")
+                true
+            } else {
+                Timber.e("Failed to send mail: response $responseText")
+                false
+            }
+        } else {
+            Timber.e("Failed to send mail: code ${response.code()}")
+            false
+        }
+    } catch (e: Exception) {
+        Timber.e(e, "Error sending mail")
         false
     }
 }

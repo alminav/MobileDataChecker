@@ -21,6 +21,14 @@ class PreferenceManager(context: Context) {
         prefs.edit { putString(Constants.KEY_PHONE_NUMBER, number) }
     }
 
+    fun getEmailAddress(): String {
+        return prefs.getString(Constants.KEY_EMAIL_ADDRESS, "alt.micha@gmail.com") ?: "alt.micha@gmail.com"
+    }
+
+    fun setEmailAddress(email: String) {
+        prefs.edit { putString(Constants.KEY_EMAIL_ADDRESS, email) }
+    }
+
     fun getImageUrl(): String {
         return prefs.getString(Constants.KEY_IMAGE_URL, "") ?: ""
     }

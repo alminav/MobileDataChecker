@@ -321,9 +321,10 @@ fun MainScreen(viewModel: MainViewModel) {
         SettingsDialog(
             currentPhone = viewModel.getPhoneNumber(),
             currentInterval = viewModel.getIntervalMinutes(),
+            currentEmail = viewModel.getEmailAddress(),
             onDismiss = { showSettingsDialog = false },
-            onSave = { phone, interval ->
-                viewModel.updatePreferences(phone, interval)
+            onSave = { phone, interval, email ->
+                viewModel.updatePreferences(phone, interval, email)
                 showSettingsDialog = false
             }
         )
@@ -426,11 +427,13 @@ fun MainScreen(viewModel: MainViewModel) {
 fun SettingsDialog(
     currentPhone: String,
     currentInterval: Long,
+    currentEmail: String,
     onDismiss: () -> Unit,
-    onSave: (String, Long) -> Unit
+    onSave: (phone: String, interval: Long, email: String) -> Unit
 ) {
     var phone by remember { mutableStateOf(currentPhone) }
     var intervalStr by remember { mutableStateOf(currentInterval.toString()) }
+    var email by remember { mutableStateOf(currentEmail) }
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -448,6 +451,14 @@ fun SettingsDialog(
                 )
                 Spacer(modifier = Modifier.height(16.dp))
                 OutlinedTextField(
+                    value = email,
+                    onValueChange = { email = it },
+                    label = { Text(stringResource(R.string.email_label)) },
+                    modifier = Modifier.fillMaxWidth(),
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email)
+                )
+                Spacer(modifier = Modifier.height(16.dp))
+                OutlinedTextField(
                     value = intervalStr,
                     onValueChange = { if (it.all { char -> char.isDigit() }) intervalStr = it },
                     label = { Text(stringResource(R.string.sms_interval_label)) },
@@ -460,7 +471,7 @@ fun SettingsDialog(
             TextButton(
                 onClick = {
                     val interval = intervalStr.toLongOrNull() ?: 15L
-                    onSave(phone, if (interval < 15) 15L else interval)
+                    onSave(phone, if (interval < 15) 15L else interval, email.trim())
                 }
             ) {
                 Text(stringResource(R.string.save))
