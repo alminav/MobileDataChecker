@@ -56,7 +56,7 @@ class MobileDataCheckWorker(context: Context, workerParams: WorkerParameters) : 
 
                 val isLocationSent = sendLocation(deviceName, imageUrl, lat, lon, altitude = alt, temperature = temp)
                 if (isLocationSent) {
-                    prefs.incrementSendLocationCount()
+                    prefs.incrementSendLocationCount() // 10okt2026
                     Timber.i("sendLocation completed successfully")
                     val recipientEmail = prefs.getEmailAddress()
                     if (imageUrl.isNotEmpty()) {
