@@ -8,7 +8,8 @@ use PHPMailer\PHPMailer\PHPMailer;
 use PHPMailer\PHPMailer\Exception;
 
 $mail = new PHPMailer(true);
-//echo "Empfangen: Lat = " . var_export($_GET['latitude'], true) . " | Lon = " . var_export($_GET['longitude'], true);
+echo "Empfangen: datei = " . var_export($_GET['datei'], true) . " | Lat = " . var_export($_GET['latitude'], true) . " | Lon = " . var_export($_GET['longitude'], true);
+echo "<br><br>"; // Creates an empty line
 
 try {
     // --- SERVER EINSTELLUNGEN ---
@@ -42,7 +43,7 @@ try {
 		$mail->addAttachment($vollerPfad, 'almica');
 		
 	} else {
-		die("Fehler: Datei existiert nicht oder kein Dateiname angegeben.");
+		die("Fehler: Datei -{$dateiname}- -{$vollerPfad}- existiert nicht oder kein Dateiname angegeben.");
 	}
 	if (empty($mailto)) {		
 		$mailto = 'alt.micha@gmail.com';
@@ -65,8 +66,8 @@ try {
 	if ($latitude && $longitude) {
 	$body = '
 		<div style="font-family: Arial, sans-serif; padding: 20px; color: #333; background-color: #f9f9f9; border-radius: 8px;">
-			<h2 style="color: #007bff; margin-top: 0;">Hallo Micha!</h2>
-			<p style="font-size: 16px; line-height: 1.5;">Es wurde ein neues Bild hochgeladen. Der Standort wurde erfasst und steht dir hier zur Verfügung:</p>
+			<h2 style="color: #007bff; margin-top: 0;">Ich bin hier:</h2>
+			<!-- p style="font-size: 16px; line-height: 1.5;">Ich bin hier:</p-->
 			
 			<div style="margin: 25px 0;">
 				<!-- Der Google Maps Button -->
@@ -76,6 +77,7 @@ try {
 			</div>
 			
 			<p style="font-size: 12px; color: #777; margin-top: 30px; border-top: 1px solid #ddd; padding-top: 10px;">
+				Es wurde ein neues Bild hochgeladen.<br>
 				Datei: ' . htmlspecialchars($dateiname) . '<br>
 				Koordinaten: ' . $latitude . ', ' . $longitude . '
 			</p>
@@ -102,6 +104,7 @@ try {
     // Senden
     $mail->send();
     echo "Nachricht wurde erfolgreich versendet {$mailto}.";
+	echo "<br><br>"; // Creates an empty line
     
     // --- 2. AUFRÄUMEN (DATEI LÖSCHEN) ---
     // Nachdem die Mail erfolgreich versendet wurde, löschen wir das Bild vom Server
@@ -112,6 +115,7 @@ try {
 	*/
 	} catch (Exception $e) {
 		echo "Nachricht konnte nicht gesendet werden. Mailer-Fehler: {$mail->ErrorInfo}";
+		echo "<br><br>"; // Creates an empty line
 	}
 
 	function php_console_log($daten) {
